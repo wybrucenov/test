@@ -1,0 +1,3051 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=1024">
+  <title>产业链评价系统</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+
+  <style>
+    :root {
+      /* 纸与墨 */
+      --paper: #f4f1e9;
+      --paper-2: #eae5da;
+      --surface: #fdfbf6;
+      --ink: #1b1917;
+      --ink-2: #59544c;
+      --ink-3: #9a9488;
+      --rule: #d6cfc0;
+
+      /* 双色套印 */
+      --navy: #24405e;
+      --navy-soft: #dce3ec;
+      --vermilion: #b0382a;
+      --vermilion-soft: #f0dcd8;
+
+      /* 等级 */
+      --g-a: #2f6b4f;
+      --g-b: #24405e;
+      --g-c: #a2761d;
+      --g-d: #b0382a;
+      --g-e: #7a2018;
+
+      --serif: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", serif;
+      --sans: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", -apple-system, "Segoe UI", sans-serif;
+      --mono: "JetBrains Mono", "Consolas", "SF Mono", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: var(--sans);
+      background: var(--paper);
+      color: var(--ink);
+      font-size: 13px;
+      line-height: 1.55;
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 纸张颗粒 —— 印刷质感的关键,不可省 */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 9999;
+      opacity: 0.05;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='140' height='140'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3'/></filter><rect width='140' height='140' filter='url(%23n)'/></svg>");
+    }
+
+    /* ============ Header ============ */
+    header {
+      background: var(--paper);
+      color: var(--ink);
+      padding: 16px 36px 12px;
+      border-bottom: 4px double var(--ink);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    header .header-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+    header h1 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 24px;
+      font-weight: 600;
+      letter-spacing: 3px;
+      line-height: 1.2;
+    }
+    header h1 .sub {
+      display: block;
+      font-family: var(--sans);
+      font-size: 10px;
+      font-weight: 400;
+      color: var(--ink-3);
+      margin: 4px 0 0;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    .toolbar { display: flex; gap: 0; }
+
+    /* ============ Buttons ============ */
+    .btn {
+      padding: 6px 15px;
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      background: transparent;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: background .12s, color .12s;
+      font-family: var(--sans);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn:hover { background: var(--ink); color: var(--paper); }
+    /* 工具栏按钮共边,像印刷标签条 */
+    .toolbar .btn + .btn { border-left: none; }
+    .btn-primary { background: var(--ink); color: var(--paper); }
+    .btn-primary:hover { background: var(--navy); border-color: var(--navy); color: var(--paper); }
+    .btn-ghost { background: transparent; }
+    .btn-ghost:disabled { opacity: .35; cursor: not-allowed; }
+    .btn-ghost:disabled:hover { background: transparent; color: var(--ink); }
+    .btn-solid { background: var(--ink); color: var(--paper); }
+    .btn-solid:hover { background: var(--navy); border-color: var(--navy); }
+    .btn-line { background: transparent; }
+    .btn-danger { background: var(--vermilion); border-color: var(--vermilion); color: var(--paper); }
+    .btn-danger:hover { background: #8f2c20; border-color: #8f2c20; }
+    .btn-icon {
+      padding: 2px 7px;
+      font-size: 11px;
+      letter-spacing: 0;
+      background: transparent;
+      color: var(--ink-3);
+      border: 1px solid transparent;
+    }
+    .btn-icon:hover { background: transparent; color: var(--ink); border-color: var(--ink); }
+    .btn-icon.danger:hover { color: var(--vermilion); border-color: var(--vermilion); background: transparent; }
+
+    /* ============ Layout ============ */
+    .container {
+      max-width: 1320px;
+      margin: 0 auto;
+      padding: 22px 36px 60px;
+    }
+
+    /* ============ Project Info (报头) ============ */
+    .project-info {
+      display: grid;
+      grid-template-columns: 2fr 1fr 1fr;
+      gap: 0;
+      margin-bottom: 20px;
+      border-top: 1px solid var(--ink);
+      border-bottom: 1px solid var(--rule);
+    }
+    .field {
+      background: transparent;
+      padding: 9px 18px;
+      border-left: 1px solid var(--rule);
+    }
+    .field:first-child { border-left: none; padding-left: 0; }
+    .field label {
+      display: block;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink-3);
+      letter-spacing: 2px;
+      margin-bottom: 1px;
+    }
+    .field input {
+      width: 100%;
+      border: none;
+      background: transparent;
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+      padding: 0;
+      outline: none;
+      font-family: var(--serif);
+    }
+    .field input:focus { color: var(--navy); }
+    #project-date, #weight-status { font-family: var(--mono) !important; font-size: 14px !important; }
+
+    /* ============ Top Row: Score + Radar ============ */
+    .top-row {
+      display: grid;
+      grid-template-columns: 268px 1fr;
+      gap: 18px;
+      margin-bottom: 24px;
+    }
+    .total-card {
+      background: var(--surface);
+      color: var(--ink);
+      border: 1px solid var(--ink);
+      padding: 20px 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+    }
+    .total-card .label {
+      font-size: 10px;
+      letter-spacing: 4px;
+      color: var(--ink-3);
+      margin-bottom: 6px;
+    }
+    .total-card .score-big {
+      font-family: var(--mono);
+      font-size: 60px;
+      font-weight: 500;
+      line-height: 1;
+      letter-spacing: -2px;
+      font-feature-settings: "tnum";
+    }
+    .total-card .score-big .total {
+      font-size: 15px;
+      color: var(--ink-3);
+      font-weight: 400;
+      letter-spacing: 0;
+      margin-left: 2px;
+    }
+    .total-card .grade-badge {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: stretch;
+      border: 1px solid var(--ink);
+      font-size: 12px;
+      letter-spacing: 2px;
+    }
+    .total-card .grade-badge .letter {
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 14px;
+      padding: 3px 9px;
+      background: var(--ink);
+      color: var(--paper);
+      letter-spacing: 0;
+    }
+    .total-card .grade-badge #total-label { padding: 3px 12px; }
+    .total-card .meta {
+      margin-top: 18px;
+      padding-top: 12px;
+      border-top: 1px solid var(--rule);
+      width: 100%;
+      font-size: 10px;
+      color: var(--ink-3);
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      letter-spacing: 1px;
+    }
+    .total-card .meta .meta-item { display: flex; flex-direction: column; }
+    .total-card .meta .meta-item .v {
+      font-family: var(--mono);
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--ink);
+      letter-spacing: 0;
+    }
+    .total-card .meta .weight-warn { color: var(--vermilion); }
+
+    .radar-card {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      padding: 12px 14px;
+      min-height: 360px;
+      position: relative;
+    }
+    .radar-card #radar-chart { width: 100%; height: 356px; }
+    .radar-fallback {
+      display: none;
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--ink-3);
+    }
+    .radar-fallback .msg { font-size: 13px; letter-spacing: 1px; }
+
+    /* ============ Chart Toolbar ============ */
+    .card-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 8px;
+      margin-bottom: 6px;
+      border-bottom: 1px solid var(--rule);
+    }
+    .seg { display: inline-flex; }
+    .seg button {
+      border: 1px solid var(--rule);
+      background: transparent;
+      font-family: var(--sans);
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--ink-3);
+      padding: 3px 13px;
+      border-radius: 0;
+      cursor: pointer;
+    }
+    .seg button + button { border-left: none; }
+    .seg button.active {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: var(--paper);
+    }
+    .baseline-ctl { display: flex; align-items: center; gap: 4px; }
+    .baseline-ctl .tag {
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: var(--ink-3);
+      border: 1px solid var(--rule);
+      padding: 3px 11px;
+      cursor: pointer;
+    }
+    .baseline-ctl .tag:hover { color: var(--ink); border-color: var(--ink); }
+    .baseline-ctl .tag.on {
+      color: var(--vermilion);
+      border-color: var(--vermilion);
+      background: var(--vermilion-soft);
+    }
+
+    /* ============ Section head ============ */
+    .section-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .section-head h2 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--ink);
+    }
+    .section-head .hint {
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-left: 12px;
+      font-weight: normal;
+      letter-spacing: 0;
+    }
+
+    /* ============ Diagnosis ============ */
+    .diag-card {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      margin-bottom: 26px;
+    }
+    .diag-head {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--ink);
+    }
+    .diag-head h3 {
+      margin: 0;
+      font-family: var(--serif);
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 2px;
+    }
+    .diag-head .hint {
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--ink-3);
+      margin-left: 10px;
+      font-weight: normal;
+      letter-spacing: 0;
+    }
+    .diag-head .summary { font-size: 12px; color: var(--ink-2); }
+    .diag-head .summary strong {
+      color: var(--navy);
+      font-family: var(--mono);
+      font-size: 14px;
+    }
+    .diag-row {
+      display: grid;
+      grid-template-columns: 26px 40px 1fr 130px 70px;
+      gap: 12px;
+      align-items: center;
+      padding: 7px 16px;
+      border-top: 1px solid var(--rule);
+      font-size: 13px;
+    }
+    .diag-head + .diag-row { border-top: none; }
+    .diag-row:hover { background: var(--paper-2); }
+    .diag-row .rank {
+      font-family: var(--mono);
+      color: var(--ink-3);
+      font-size: 11px;
+      text-align: center;
+    }
+    .diag-row .dcode {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--ink-2);
+      border: 1px solid var(--rule);
+      padding: 1px 0;
+      text-align: center;
+    }
+    .diag-row .cur {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-3);
+    }
+    .diag-row .cur .track {
+      flex: 1;
+      height: 5px;
+      background: var(--paper-2);
+      border: 1px solid var(--rule);
+    }
+    .diag-row .cur .track i { display: block; height: 100%; background: var(--vermilion); }
+    .diag-row .gain {
+      font-family: var(--mono);
+      font-weight: 600;
+      color: var(--navy);
+      text-align: right;
+    }
+    .diag-empty { padding: 26px; text-align: center; color: var(--ink-3); font-size: 12px; }
+
+    /* ============ Grade Legend ============ */
+    .grade-legend {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      padding: 10px 18px;
+      margin-bottom: 18px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      border-left: 3px solid var(--ink);
+      font-size: 11px;
+      color: var(--ink-2);
+    }
+    .grade-legend .gl-label {
+      font-family: var(--serif);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink);
+      letter-spacing: 3px;
+      margin-right: 6px;
+      padding-right: 12px;
+      border-right: 1px solid var(--rule);
+    }
+    .grade-legend .gl-cell {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      letter-spacing: 1px;
+    }
+    .grade-legend .gl-mark {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 19px;
+      height: 19px;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--paper);
+    }
+    .grade-legend .gl-thresh {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink);
+      font-weight: 600;
+      letter-spacing: 0;
+    }
+
+    /* ============ Dim cards ============ */
+    .dim-card {
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .dim-card.dragging { opacity: .45; }
+    .dim-card.drag-over { border-color: var(--navy); border-style: dashed; }
+    .dim-head {
+      display: grid;
+      grid-template-columns: auto 40px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: var(--paper-2);
+      border-bottom: 1px solid var(--ink);
+      cursor: move;
+    }
+    .dim-head .drag-handle {
+      color: var(--ink-3);
+      cursor: grab;
+      font-size: 12px;
+      letter-spacing: 1px;
+    }
+    .dim-head .code-badge {
+      font-family: var(--mono);
+      font-size: 12px;
+      font-weight: 600;
+      padding: 2px 0;
+      background: transparent;
+      border: 1px solid var(--ink);
+      color: var(--ink);
+      text-align: center;
+    }
+    .dim-head .dim-meta { display: flex; align-items: center; gap: 16px; }
+    .dim-head .dim-name {
+      font-family: var(--serif);
+      font-size: 16px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--ink);
+    }
+    .dim-head .dim-name-en {
+      font-size: 10px;
+      color: var(--ink-3);
+      font-weight: normal;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-left: 5px;
+    }
+    .dim-head .dim-score-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--mono);
+      font-size: 12px;
+    }
+    .dim-head .dim-score-bar .score-num {
+      font-weight: 600;
+      font-size: 17px;
+      color: var(--ink);
+    }
+    .dim-head .dim-score-bar .progress {
+      width: 64px;
+      height: 5px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+    }
+    .dim-head .dim-score-bar .progress-fill {
+      height: 100%;
+      background: var(--navy);
+      transition: width .2s;
+    }
+    .dim-head .actions { display: flex; gap: 3px; }
+
+    .dim-weight {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 1px;
+    }
+    .dim-weight input[type=range] { width: 92px; accent-color: var(--navy); }
+    .dim-weight .weight-val {
+      font-family: var(--mono);
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--ink);
+      min-width: 30px;
+      text-align: right;
+      letter-spacing: 0;
+    }
+
+    /* ============ Indicator rows ============ */
+    .ind-list { padding: 0; }
+    .ind-head {
+      display: grid;
+      grid-template-columns: 34px 1fr 76px 62px 40px 130px;
+      gap: 12px;
+      padding: 5px 16px;
+      font-size: 10px;
+      color: var(--ink-3);
+      letter-spacing: 2px;
+      border-bottom: 1px solid var(--rule);
+      background: var(--surface);
+    }
+    .ind-head .r { text-align: right; }
+    .ind-row {
+      display: grid;
+      grid-template-columns: 34px 1fr 76px 62px 40px 130px;
+      gap: 12px;
+      align-items: center;
+      padding: 7px 16px;
+      border-top: 1px solid var(--rule);
+      transition: background .1s;
+    }
+    .ind-head + .ind-row { border-top: none; }
+    .ind-row:hover { background: var(--paper-2); }
+    .ind-row .ind-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--ink-3);
+      text-align: center;
+    }
+    .ind-row .ind-name {
+      font-size: 13px;
+      color: var(--ink);
+      font-weight: 500;
+    }
+    .ind-row .ind-name .ind-note {
+      font-size: 11px;
+      color: var(--ink-2);
+      font-weight: normal;
+      line-height: 1.5;
+      margin-top: 1px;
+      max-width: 70ch;
+    }
+    .ind-row .ind-weight, .ind-row .ind-score {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink-2);
+      text-align: right;
+      line-height: 1.25;
+    }
+    .ind-row .ind-score { font-weight: 600; font-size: 14px; color: var(--ink); }
+    .ind-row .ind-weight .share {
+      display: block;
+      font-size: 10px;
+      color: var(--ink-3);
+      font-weight: normal;
+    }
+    .ind-row .ind-grade { text-align: center; }
+    .ind-row .ind-grade .g,
+    .dim-head .dim-score-bar .g {
+      display: inline-block;
+      width: 19px;
+      height: 19px;
+      border-radius: 0;
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-align: center;
+      line-height: 19px;
+      color: var(--paper);
+    }
+    .ind-row .actions { display: flex; gap: 3px; justify-content: flex-end; opacity: 0; transition: opacity .12s; }
+    .ind-row:hover .actions, .ind-row.editing .actions { opacity: 1; }
+
+    /* Inline edit mode */
+    .ind-row.editing {
+      background: var(--navy-soft);
+      align-items: start;
+    }
+    .ind-row.editing input, .ind-row.editing textarea {
+      width: 100%;
+      border: 1px solid var(--navy);
+      border-radius: 0;
+      padding: 3px 6px;
+      font-family: var(--sans);
+      font-size: 12px;
+      background: var(--surface);
+      outline: none;
+    }
+    .ind-row.editing input { font-family: var(--mono); }
+    .ind-row.editing .ie-name { font-family: var(--sans); }
+    .ind-row.editing textarea {
+      grid-column: 2 / span 4;
+      grid-row: 2;
+      margin-top: 4px;
+      min-height: 40px;
+      resize: vertical;
+      line-height: 1.5;
+    }
+
+    .dim-footer {
+      padding: 7px 16px;
+      background: var(--paper-2);
+      border-top: 1px solid var(--rule);
+      display: flex;
+      justify-content: flex-end;
+    }
+    .dim-footer .btn { border-color: var(--rule); color: var(--ink-2); font-size: 11px; padding: 4px 12px; }
+    .dim-footer .btn:hover { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+
+    /* ============ Indicator basis panel (v2) ============ */
+    .ind-basis {
+      grid-column: 1 / -1;
+      display: none;
+      padding: 14px 16px 18px 52px;
+      background: var(--paper-2);
+      border-top: 1px solid var(--rule);
+      font-size: 12px;
+    }
+    .ind-basis.show { display: block; }
+    .ind-basis .basis-section {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 12px;
+      margin-bottom: 10px;
+      align-items: start;
+    }
+    .ind-basis .basis-section .label {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 2px;
+      color: var(--ink-3);
+      text-transform: uppercase;
+      padding-top: 5px;
+      text-align: right;
+    }
+    .ind-basis .basis-formula {
+      font-family: var(--mono);
+      font-size: 12px;
+      color: var(--ink);
+      padding: 6px 10px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      letter-spacing: 0;
+    }
+    .ind-basis .basis-formula .v { color: var(--vermilion); }
+
+    .ind-basis .basis-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+    }
+    .ind-basis .basis-table th,
+    .ind-basis .basis-table td {
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--rule);
+      vertical-align: middle;
+    }
+    .ind-basis .basis-table th {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--ink-3);
+      text-align: left;
+      background: var(--paper);
+      font-weight: 500;
+    }
+    .ind-basis .basis-table input.inp {
+      width: 100%;
+      border: none;
+      background: transparent;
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 3px 5px;
+      outline: none;
+      color: var(--ink);
+      border: 1px solid transparent;
+    }
+    .ind-basis .basis-table input.inp:focus,
+    .ind-basis .basis-table input.inp:hover { border-color: var(--navy); background: var(--surface); }
+    .ind-basis .basis-table input.inp.col-label { font-family: var(--sans); font-size: 12px; }
+    .ind-basis .basis-table input.inp.col-num { text-align: right; }
+    .ind-basis .basis-table input.inp.warn {
+      border-bottom: 1px solid var(--vermilion);
+    }
+    .ind-basis .basis-table .col-action { width: 28px; text-align: right; }
+    .ind-basis .basis-table .col-narrow { width: 80px; }
+    .ind-basis .basis-table .col-narrow input { text-align: right; }
+    .ind-basis .basis-add-row {
+      padding: 4px 10px;
+      font-size: 11px;
+      letter-spacing: 1px;
+      border: 1px dashed var(--rule);
+      background: transparent;
+      color: var(--ink-2);
+      cursor: pointer;
+      font-family: var(--sans);
+      margin-top: 4px;
+    }
+    .ind-basis .basis-add-row:hover { border-color: var(--ink); color: var(--ink); }
+
+    .ind-basis .basis-compute {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 7px 10px;
+      background: var(--surface);
+      border: 1px solid var(--rule);
+      letter-spacing: 0;
+      color: var(--ink-2);
+    }
+    .ind-basis .basis-compute .res { color: var(--vermilion); font-weight: 600; font-size: 13px; }
+    .ind-basis .basis-compute .res.bare { color: var(--ink-3); font-weight: 400; font-style: italic; }
+
+    .ind-basis .basis-note {
+      width: 100%;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      font-family: var(--sans);
+      font-size: 12px;
+      line-height: 1.6;
+      padding: 6px 9px;
+      outline: none;
+      resize: vertical;
+      min-height: 36px;
+      color: var(--ink);
+    }
+    .ind-basis .basis-note:focus { border-color: var(--navy); }
+
+    .basis-toggle {
+      font-family: var(--mono);
+      font-size: 10px;
+      letter-spacing: 1px;
+      color: var(--ink-3);
+      border: 1px solid var(--rule);
+      background: transparent;
+      padding: 2px 8px;
+      cursor: pointer;
+      margin-right: 4px;
+    }
+    .basis-toggle:hover { border-color: var(--ink); color: var(--ink); }
+    .basis-toggle.on { color: var(--vermilion); border-color: var(--vermilion); background: var(--vermilion-soft); }
+
+    /* 复合 tiered 双输入:横向并排 */
+    .ind-basis .basis-2col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+    .ind-basis .basis-2col .field {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      color: var(--ink-2);
+    }
+    .ind-basis .basis-2col .field label {
+      font-family: var(--sans);
+      font-size: 11px;
+      color: var(--ink-2);
+      letter-spacing: 0;
+    }
+    .ind-basis .basis-2col .field input {
+      width: 80px;
+      border: 1px solid var(--rule);
+      background: var(--surface);
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 3px 6px;
+      text-align: right;
+      outline: none;
+    }
+    .ind-basis .basis-2col .field input:focus { border-color: var(--navy); }
+
+    /* 迁移横幅 */
+    .migration-banner {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 11px 16px;
+      margin-bottom: 18px;
+      background: var(--vermilion-soft);
+      border-top: 1px solid var(--vermilion);
+      border-bottom: 1px solid var(--vermilion);
+      font-size: 12px;
+      color: var(--ink-2);
+    }
+    .migration-banner .mb-icon {
+      font-family: var(--serif);
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--vermilion);
+      letter-spacing: 1px;
+      flex-shrink: 0;
+      padding: 1px 6px;
+      border: 1px solid var(--vermilion);
+    }
+    .migration-banner .mb-text { flex: 1; line-height: 1.6; }
+    .migration-banner .mb-text strong { color: var(--ink); font-family: var(--serif); }
+    .migration-banner .mb-dismiss {
+      padding: 4px 14px;
+      background: var(--ink);
+      color: var(--paper);
+      border: none;
+      font-size: 11px;
+      letter-spacing: 1px;
+      cursor: pointer;
+      font-family: var(--sans);
+    }
+    .migration-banner .mb-dismiss:hover { background: var(--navy); }
+    .migration-banner.dismissed { display: none; }
+
+    /* ============ Modal ============ */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(27, 25, 23, .45);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--ink);
+      border-radius: 0;
+      padding: 20px 24px;
+      max-width: 440px;
+      width: 100%;
+      max-height: 84vh;
+      overflow-y: auto;
+      box-shadow: 6px 6px 0 rgba(27, 25, 23, .16);
+    }
+    .modal h3 {
+      margin: 0 0 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--ink);
+      font-family: var(--serif);
+      font-size: 15px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      color: var(--ink);
+    }
+    .modal .form-row { margin-bottom: 11px; }
+    .modal label {
+      display: block;
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--ink-3);
+      letter-spacing: 1px;
+      margin-bottom: 3px;
+    }
+    .modal input, .modal textarea {
+      width: 100%;
+      border: 1px solid var(--rule);
+      border-radius: 0;
+      padding: 6px 9px;
+      font-size: 13px;
+      font-family: var(--sans);
+      background: var(--paper);
+      outline: none;
+      transition: border .12s;
+    }
+    .modal input:focus, .modal textarea:focus { border-color: var(--navy); background: var(--surface); }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 18px;
+      padding-top: 14px;
+      border-top: 1px solid var(--rule);
+    }
+    .modal .confirm-msg { font-size: 13px; color: var(--ink-2); line-height: 1.7; }
+
+    /* ============ Toast ============ */
+    .toast {
+      position: fixed;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(16px);
+      background: var(--ink);
+      color: var(--paper);
+      padding: 9px 20px;
+      border-radius: 0;
+      font-size: 12px;
+      letter-spacing: 1px;
+      box-shadow: 4px 4px 0 rgba(27, 25, 23, .2);
+      opacity: 0;
+      pointer-events: none;
+      transition: all .22s;
+      z-index: 2000;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+    /* ============ Misc ============ */
+    .empty-hint {
+      padding: 40px;
+      text-align: center;
+      color: var(--ink-3);
+      font-size: 13px;
+      background: var(--surface);
+      border: 1px dashed var(--rule);
+    }
+
+    /* 等级色 —— 印刷四色感,非霓虹 */
+    .grade-A { background: var(--g-a); }
+    .grade-B { background: var(--g-b); }
+    .grade-C { background: var(--g-c); }
+    .grade-D { background: var(--g-d); }
+    .grade-E { background: var(--g-e); }
+
+    @media (max-width: 1100px) {
+      .top-row { grid-template-columns: 1fr; }
+      .project-info { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="header-row">
+    <h1>产业链评价系统 <span class="sub">INDUSTRY CHAIN EVALUATION</span></h1>
+    <div class="toolbar">
+      <button class="btn btn-ghost" id="btn-new">新建</button>
+      <button class="btn btn-ghost" id="btn-reload-text">重载文字</button>
+      <button class="btn btn-ghost" id="btn-import">导入 JSON</button>
+      <button class="btn btn-ghost" id="btn-export-json">导出 JSON</button>
+      <button class="btn btn-primary" id="btn-export-pdf">导出 PDF</button>
+    </div>
+  </div>
+</header>
+
+<div class="container" id="report-area">
+
+  <div class="project-info">
+    <div class="field">
+      <label>评价对象</label>
+      <input id="project-name" type="text" placeholder="例:XX市航空产业链">
+    </div>
+    <div class="field">
+      <label>评价日期</label>
+      <input id="project-date" type="date">
+    </div>
+    <div class="field">
+      <label>权重合计</label>
+      <input id="weight-status" type="text" readonly style="color:var(--ink-2);">
+    </div>
+  </div>
+
+  <div class="top-row">
+    <div class="total-card">
+      <div class="label">综合评分</div>
+      <div class="score-big"><span id="total-score">—</span><span class="total">/ 100</span></div>
+      <div class="grade-badge">
+        <span class="letter" id="total-letter">—</span>
+        <span id="total-label">—</span>
+      </div>
+      <div class="meta">
+        <div class="meta-item">
+          <span>维度</span>
+          <span class="v" id="meta-dims">0</span>
+        </div>
+        <div class="meta-item">
+          <span>指标</span>
+          <span class="v" id="meta-inds">0</span>
+        </div>
+        <div class="meta-item">
+          <span>权重</span>
+          <span class="v" id="meta-weight">0%</span>
+        </div>
+      </div>
+    </div>
+    <div class="radar-card">
+      <div class="card-tools">
+        <div class="seg" id="view-seg">
+          <button data-view="radar" class="active">雷达图</button>
+          <button data-view="bar">条形排名</button>
+        </div>
+        <div class="baseline-ctl">
+          <span class="tag" id="baseline-tag">设置对标</span>
+        </div>
+      </div>
+      <div id="radar-chart"></div>
+      <div class="radar-fallback" id="radar-fallback">
+        
+        <div class="msg">雷达图需要联网加载 ECharts<br>数据编辑仍可正常使用</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grade-legend" id="grade-legend"></div>
+
+  <div class="diag-card" id="diag-card"></div>
+
+  <div class="section-head">
+    <h2>维度与指标 <span class="hint">编辑 / 删除按钮位于行尾,拖动行首手柄可排序</span></h2>
+    <button class="btn btn-solid" id="btn-add-dim">+ 添加维度</button>
+  </div>
+
+  <div id="dims-container"></div>
+
+</div>
+
+<!-- ============ Modal ============ -->
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<!-- ============ Toast ============ -->
+<div class="toast" id="toast"></div>
+
+<script id="template-data" type="application/json">
+{
+  "projectName": "XX市航空产业链评价",
+  "date": "2026-08-14",
+  "dims": [
+    {
+      "id": "dim-A1",
+      "code": "A1",
+      "name": "完整性",
+      "nameEn": "Integrity",
+      "weight": 18,
+      "indicators": [
+        { "id": "ind-01", "name": "分系统本地化率", "weight": 4,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "起落架", "weight": 3, "rate": 55 },
+            { "label": "液压", "weight": 2, "rate": 50 },
+            { "label": "机体", "weight": 4, "rate": 45 },
+            { "label": "发动机", "weight": 5, "rate": 10 },
+            { "label": "航电", "weight": 3, "rate": 15 },
+            { "label": "复合材料", "weight": 3, "rate": 20 }
+          ] },
+          "note": "起落架、液压、机体本地能做(40-60%);发动机、航电核心本地空白。" },
+        { "id": "ind-02", "name": "基础产业本地化率", "weight": 5,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "精密加工", "weight": 4, "rate": 60 },
+            { "label": "航空材料", "weight": 5, "rate": 15 },
+            { "label": "电子半导体", "weight": 4, "rate": 10 },
+            { "label": "工业软件", "weight": 3, "rate": 20 }
+          ] },
+          "note": "仅精密加工较强;航空材料、电子半导体、软件基本空白。" },
+        { "id": "ind-03", "name": "上中下游结构完整度", "weight": 4,
+          "score_basis": { "type": "equal_avg", "items": [
+            { "label": "上游配套", "rate": 60 },
+            { "label": "中游总装", "rate": 85 },
+            { "label": "下游 MRO/培训/物流", "rate": 35 }
+          ] },
+          "note": "中游(本地龙头企业整机总装)强,上游部分配套,下游薄弱(无完整 MRO/培训/物流链)。" },
+        { "id": "ind-04", "name": "缺链/短链环节识别", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "卡点覆盖完整度", "score": 80 },
+            { "label": "识别方法论成熟度", "score": 85 },
+            { "label": "补链方向明确度", "score": 90 }
+          ] },
+          "note": "已能系统识别发动机/航电/关键材料等卡点,识别工作成熟,补链方向明确。" }
+      ]
+    },
+    {
+      "id": "dim-A2",
+      "code": "A2",
+      "name": "成长性",
+      "nameEn": "Growth",
+      "weight": 15,
+      "indicators": [
+        { "id": "ind-05", "name": "产业规模与增速", "weight": 5,
+          "score_basis": { "type": "compound_tiered",
+            "labels": { "a": "产业规模(亿元)", "b": "近 3 年增速(%)" },
+            "units": { "a": "", "b": "%" },
+            "aBrackets": [
+              { "min": 50, "label": "< 50" },
+              { "min": 100, "label": "50-100" },
+              { "min": 200, "label": "100-200" },
+              { "min": 500, "label": "200-500" },
+              { "min": 1000, "label": "≥ 500" }
+            ],
+            "bBrackets": [
+              { "min": 0, "label": "< 5%" },
+              { "min": 5, "label": "5-10%" },
+              { "min": 10, "label": "10-15%" },
+              { "min": 15, "label": "15-25%" },
+              { "min": 25, "label": "≥ 25%" }
+            ],
+            "a": 150, "b": 10,
+            "table": [
+              [20, 35, 50, 60, 70],
+              [30, 45, 55, 65, 75],
+              [40, 50, 60, 70, 80],
+              [50, 60, 70, 80, 85],
+              [55, 65, 75, 85, 90]
+            ]
+          },
+          "note": "XX市航空产业总产值 100-200 亿元,近 3 年增速约 8-12%;整体规模在全国航空产业版图中偏小。" },
+        { "id": "ind-06", "name": "民用航空拓展度", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "民用产品丰富度", "score": 25 },
+            { "label": "军民融合转化度", "score": 35 },
+            { "label": "通航 / 民机市场拓展", "score": 40 }
+          ] },
+          "note": "本地民用航空产品体系薄弱,军民融合转化程度低,通航/民机市场拓展不足。" },
+        { "id": "ind-07", "name": "产业贡献度", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "就业贡献", "score": 85 },
+            { "label": "GDP 贡献", "score": 80 },
+            { "label": "财政贡献", "score": 75 }
+          ] },
+          "note": "本地龙头企业带动本地航空相关就业 1.5 万+,对XX市 GDP 和财政贡献突出。" }
+      ]
+    },
+    {
+      "id": "dim-A3",
+      "code": "A3",
+      "name": "创新性",
+      "nameEn": "Innovation",
+      "weight": 15,
+      "indicators": [
+        { "id": "ind-08", "name": "R&D 投入强度", "weight": 4,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "本地龙头企业 R&D 占营收比 (%)", "weight": 7, "rate": 55 },
+            { "label": "本地中小企业 R&D 占营收比 (%)", "weight": 5, "rate": 20 }
+          ] },
+          "note": "本地龙头企业 R&D 投入 5%+,本地中小企业 <2%,平均后整体偏低,创新基础薄弱。" },
+        { "id": "ind-09", "name": "创新平台数", "weight": 4,
+          "score_basis": { "type": "tiered", "unit": "count", "input": 3,
+            "brackets": [
+              { "min": 0, "score": 15 },
+              { "min": 2, "score": 25 },
+              { "min": 4, "score": 50 },
+              { "min": 7, "score": 70 },
+              { "min": 12, "score": 85 },
+              { "min": 20, "score": 95 }
+            ] },
+          "note": "国家级/省级实验室、工程中心数量少;主要创新资源集中在本地龙头企业内部。" },
+        { "id": "ind-10", "name": "有效发明专利数", "weight": 3,
+          "score_basis": { "type": "tiered", "unit": "count", "input": 40,
+            "brackets": [
+              { "min": 0, "score": 15 },
+              { "min": 10, "score": 22 },
+              { "min": 30, "score": 30 },
+              { "min": 80, "score": 50 },
+              { "min": 200, "score": 70 },
+              { "min": 500, "score": 85 },
+              { "min": 1000, "score": 95 }
+            ] },
+          "note": "核心专利集中在本地龙头企业,本地企业发明专利少。" },
+        { "id": "ind-11", "name": "研发人才储备", "weight": 4,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "研发人员占从业人员比", "score": 30 },
+            { "label": "高素质人才结构均衡度", "score": 30 },
+            { "label": "本地培养与引进能力", "score": 45 }
+          ] },
+          "note": "研发人员占从业人员比例低;高素质人才多集中在本地龙头企业,人才结构不均。" }
+      ]
+    },
+    {
+      "id": "dim-A4",
+      "code": "A4",
+      "name": "安全性",
+      "nameEn": "Security",
+      "weight": 14,
+      "indicators": [
+        { "id": "ind-12", "name": "关键环节国产化率", "weight": 4,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "整机集成", "weight": 3, "rate": 80 },
+            { "label": "发动机", "weight": 5, "rate": 10 },
+            { "label": "航电系统", "weight": 4, "rate": 25 },
+            { "label": "复合材料", "weight": 3, "rate": 30 },
+            { "label": "关键机械件", "weight": 3, "rate": 60 }
+          ] },
+          "note": "整机自主可控,但发动机(涡扇)、航电、复材依赖外部;核心环节自主可控率约 35%。" },
+        { "id": "ind-13", "name": "备链/备产能力", "weight": 3,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "备份供应商覆盖度", "score": 45 },
+            { "label": "备链规划完备度", "score": 50 },
+            { "label": "应急备产能力", "score": 55 }
+          ] },
+          "note": "部分关键件有备份供应商,但系统不完备;缺乏战略级备链规划。" },
+        { "id": "ind-14", "name": "关键人才与技术储备", "weight": 3,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "关键工艺传承度", "score": 60 },
+            { "label": "核心技术人才储备", "score": 60 },
+            { "label": "技术文档体系完备度", "score": 60 }
+          ] },
+          "note": "央企背景带动,关键工艺和核心技术人员有储备。" },
+        { "id": "ind-15", "name": "客户多元性(硬指标)", "weight": 4,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "军品客户", "weight": 4, "rate": 85 },
+            { "label": "民机客户", "weight": 6, "rate": 5 },
+            { "label": "通航客户", "weight": 5, "rate": 10 },
+            { "label": "外贸客户", "weight": 3, "rate": 20 }
+          ] },
+          "note": "军品客户稳定,但民机/通航客户几乎空白,客户结构高度单一。" }
+      ]
+    },
+    {
+      "id": "dim-A5",
+      "code": "A5",
+      "name": "协同性",
+      "nameEn": "Synergy",
+      "weight": 20,
+      "indicators": [
+        { "id": "ind-16", "name": "链主本地采购率", "weight": 5,
+          "score_basis": { "type": "weighted_avg", "items": [
+            { "label": "机体结构件", "weight": 4, "rate": 60 },
+            { "label": "机械加工件", "weight": 5, "rate": 65 },
+            { "label": "复合材料", "weight": 3, "rate": 15 },
+            { "label": "发动机", "weight": 5, "rate": 5 },
+            { "label": "航电系统", "weight": 4, "rate": 10 },
+            { "label": "标准件 / 辅料", "weight": 3, "rate": 80 }
+          ] },
+          "note": "估计本地采购率 30-40%;发动机、航电、关键材料外购。" },
+        { "id": "ind-17", "name": "配套园区集聚度", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "园区企业数量与活跃度", "score": 55 },
+            { "label": "产业链覆盖度", "score": 50 },
+            { "label": "配套服务与基础设施", "score": 60 }
+          ] },
+          "note": "XX市航空工业园有基础;但企业数量、产业链覆盖度与阎良/成都比差距明显。" },
+        { "id": "ind-18", "name": "大中小企业融通度", "weight": 5,
+          "score_basis": { "type": "equal_avg", "items": [
+            { "label": "加工配套融通", "rate": 70 },
+            { "label": "创新链融通", "rate": 35 },
+            { "label": "资本 / 人才融通", "rate": 60 }
+          ] },
+          "note": "本地龙头企业与配套企业协作较好;但融通主要在加工配套层,创新链层面融通不深。" },
+        { "id": "ind-19", "name": "公共平台支撑", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "第三方检测 / 计量", "score": 45 },
+            { "label": "试飞 / 适航支撑", "score": 40 },
+            { "label": "公共研发平台", "score": 60 },
+            { "label": "物流 / 仓储配套", "score": 55 }
+          ] },
+          "note": "第三方检测、试飞、计量等公共平台少;主要依赖本地龙头企业内部资源。" }
+      ]
+    },
+    {
+      "id": "dim-A6",
+      "code": "A6",
+      "name": "制度性",
+      "nameEn": "Institutional",
+      "weight": 18,
+      "indicators": [
+        { "id": "ind-20", "name": "专项政策完备度", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "国家专项政策覆盖", "score": 70 },
+            { "label": "省级专项政策", "score": 65 },
+            { "label": "市级配套政策", "score": 60 }
+          ] },
+          "note": "西部政策红利可用,XX省/XX市均有航空产业专项支持。" },
+        { "id": "ind-21", "name": "产业用地与园区保障", "weight": 4,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "用地保障", "score": 75 },
+            { "label": "水电 / 基础配套", "score": 70 },
+            { "label": "园区级别与品牌", "score": 65 }
+          ] },
+          "note": "用地有保障,XX市航空工业园为省级园区,水电稳定。" },
+        { "id": "ind-22", "name": "人才引进与培养政策", "weight": 4,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "引才政策力度", "score": 45 },
+            { "label": "本地院校与培养体系", "score": 40 },
+            { "label": "区位与留才环境", "score": 55 },
+            { "label": "安居 / 子女教育配套", "score": 60 }
+          ] },
+          "note": "人才引进政策有但吸引力不足(区位偏远),本地航空院校少。" },
+        { "id": "ind-23", "name": "资金金融与营商环境", "weight": 5,
+          "score_basis": { "type": "rubric", "items": [
+            { "label": "产业基金规模", "score": 45 },
+            { "label": "金融工具丰富度", "score": 45 },
+            { "label": "营商环境(政务 / 法治)", "score": 60 }
+          ] },
+          "note": "西部有中央转移支付;但航空产业基金规模小,营商环境与东部差距明显。" }
+      ]
+    }
+  ]
+}
+</script>
+
+<script>
+(function(){
+  'use strict';
+
+  // ============ Constants ============
+  const STORAGE_KEY = 'industry-chain-eval-v1';
+  const SCHEMA_VERSION = 2;
+
+  // 指标评分口径类型(v2 起每个指标自带 score_basis)
+  const SCORE_TYPES = {
+    WEIGHTED_AVG: 'weighted_avg',
+    EQUAL_AVG: 'equal_avg',
+    TIERED: 'tiered',
+    COMPOUND_TIERED: 'compound_tiered',
+    RUBRIC: 'rubric'
+  };
+
+  // ============ Load Template ============
+  function loadTemplate() {
+    try {
+      const tpl = document.getElementById('template-data');
+      return JSON.parse(tpl.textContent);
+    } catch(e) {
+      console.error('Failed to load template', e);
+      return { projectName: '', date: '', dims: [] };
+    }
+  }
+  const TEMPLATE = loadTemplate();
+
+  // ============ State ============
+  let state = null;
+  let pendingMigration = null;  // { count, hasInconsistency }
+
+  function findTplIndicator(id) {
+    if (!TEMPLATE || !TEMPLATE.dims) return null;
+    for (const d of TEMPLATE.dims) {
+      const i = (d.indicators || []).find(x => x.id === id);
+      if (i) return i;
+    }
+    return null;
+  }
+
+  function defaultBasisForNew() {
+    return { type: SCORE_TYPES.RUBRIC, items: [] };
+  }
+
+  // v1 → v2 迁移:为每个 indicator 注入 score_basis(从 TEMPLATE 按 ID 匹配)
+  function migrateState(s) {
+    if (!s || !s.dims) return s;
+    let count = 0;
+    const inconsistentIds = [];
+    s.dims.forEach(d => {
+      (d.indicators || []).forEach(ind => {
+        if (ind.score_basis) return;
+        const tpl = findTplIndicator(ind.id);
+        if (tpl && tpl.score_basis) {
+          ind.score_basis = JSON.parse(JSON.stringify(tpl.score_basis));
+        } else {
+          ind.score_basis = defaultBasisForNew();
+        }
+        if (typeof ind.score === 'number') {
+          ind._legacyScore = ind.score;
+          delete ind.score;
+          const fresh = computeFromBasis(ind.score_basis).val;
+          if (Math.abs(fresh - ind._legacyScore) > 25) inconsistentIds.push(ind.id);
+          count++;
+        }
+      });
+    });
+    s.schemaVersion = SCHEMA_VERSION;
+    if (count > 0) {
+      pendingMigration = { count, inconsistentIds };
+    }
+    return s;
+  }
+
+  function loadState() {
+    let s = null;
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) s = JSON.parse(raw);
+    } catch(e) {}
+    if (!s || !s.dims) s = JSON.parse(JSON.stringify(TEMPLATE));
+    s.schemaVersion = s.schemaVersion || 1;
+    if (s.schemaVersion !== SCHEMA_VERSION) s = migrateState(s);
+    return s;
+  }
+
+  function saveState() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch(e) {
+      console.warn('localStorage save failed', e);
+    }
+  }
+
+  function resetToTemplate() {
+    state = JSON.parse(JSON.stringify(TEMPLATE));
+    saveState();
+  }
+
+  // ============ Utils ============
+  function uid(prefix) {
+    return prefix + '-' + Math.random().toString(36).slice(2, 8) + Date.now().toString(36).slice(-3);
+  }
+
+  function nextDimCode() {
+    const codes = state.dims.map(d => d.code).filter(c => /^A\d+$/.test(c));
+    let n = 1;
+    while (codes.includes('A' + n)) n++;
+    return 'A' + n;
+  }
+
+  function nextIndNum(dim) {
+    if (!dim.indicators.length) return '01';
+    const nums = dim.indicators.map((_, i) => i + 1);
+    return String(nums.length + 1).padStart(2, '0');
+  }
+
+  // 等级阈值(单一数据源,legend 自动生成自此)
+  const GRADE_LETTERS = [
+    { letter: 'A', min: 85, label: '优秀' },
+    { letter: 'B', min: 70, label: '良好' },
+    { letter: 'C', min: 55, label: '中等' },
+    { letter: 'D', min: 40, label: '较弱' },
+    { letter: 'E', min: 0,  label: '弱' }
+  ];
+
+  function gradeFor(score) {
+    for (let i = 0; i < GRADE_LETTERS.length; i++) {
+      if (score >= GRADE_LETTERS[i].min) return GRADE_LETTERS[i];
+    }
+    return GRADE_LETTERS[GRADE_LETTERS.length - 1];
+  }
+
+  function gradeClass(letter) { return 'grade-' + letter; }
+
+  // 等级阈值图例(从 GRADE_LETTERS 自动生成)
+  function renderGradeLegend() {
+    const el = document.getElementById('grade-legend');
+    if (!el) return;
+    const cells = GRADE_LETTERS.map((g, i) => {
+      const isLast = i === GRADE_LETTERS.length - 1;
+      const thresh = isLast
+        ? '&lt; ' + GRADE_LETTERS[i - 1].min
+        : '≥ ' + g.min;
+      return '<span class="gl-cell">'
+        + '<span class="gl-mark grade-' + g.letter + '">' + g.letter + '</span>'
+        + '<span class="gl-thresh">' + thresh + '</span>'
+        + '<span>' + g.label + '</span>'
+        + '</span>';
+    }).join('');
+    el.innerHTML = '<span class="gl-label">等级阈值</span>' + cells;
+  }
+
+  function escapeHTML(s) {
+    if (s == null) return '';
+    return String(s).replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return function(...args) {
+      clearTimeout(t);
+      t = setTimeout(() => fn.apply(this, args), ms);
+    };
+  }
+
+  const debouncedSave = debounce(saveState, 300);
+
+  // ============ Score Basis Engine (v2) ============
+  // 评分口径类型说明:
+  //   weighted_avg: 加权平均 [{label, weight, rate}]
+  //   equal_avg:    等权平均 [{label, rate}]
+  //   tiered:       阶梯计分 {input:number, unit, brackets:[{min,score}], label?}
+  //   compound_tiered: 双维 tiered {a:number, b:number, table:[[score...]], labels:{a,b}, units:{a,b}}
+  //   rubric:       主观量表 [{label, anchor, score}]
+
+  function clampNum(v, min, max) {
+    v = parseFloat(v);
+    if (isNaN(v)) return min;
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function clampInt(v, min, max) {
+    return Math.round(clampNum(v, min, max));
+  }
+
+  // 安全求均值;空数组返回 0
+  function safeAvg(arr) {
+    if (!arr || !arr.length) return { val: 0, terms: [] };
+    const sum = arr.reduce((a, b) => a + b, 0);
+    return { val: sum / arr.length, terms: arr };
+  }
+
+  // ---------- 4 个 compute 子函数 ----------
+  function computeWeightedAvg(basis) {
+    const items = (basis.items || []).filter(it => it.label || it.label === '');
+    const valid = items.filter(it => typeof it.rate === 'number');
+    if (!valid.length) return { val: 0, expr: '— (无有效输入)', nullish: true };
+    const ws = valid.reduce((a, it) => a + (it.weight || 0), 0);
+    if (ws === 0) return { val: 0, expr: '— (权重之和为 0)', nullish: true };
+    let num = 0;
+    const parts = [];
+    valid.forEach((it, i) => {
+      const w = it.weight || 0;
+      const r = it.rate;
+      num += w * r;
+      if (w > 0) parts.push(w + '×' + r);
+    });
+    const expr = '(' + parts.join(' + ') + ') / ' + ws;
+    return { val: num / ws, expr, nullish: false };
+  }
+
+  function computeEqualAvg(basis) {
+    const items = (basis.items || []).filter(it => typeof it.rate === 'number');
+    if (!items.length) return { val: 0, expr: '— (无有效输入)', nullish: true };
+    const rates = items.map(it => it.rate);
+    const sum = rates.reduce((a, b) => a + b, 0);
+    const expr = '(' + rates.join(' + ') + ') / ' + rates.length;
+    return { val: sum / rates.length, expr, nullish: false };
+  }
+
+  function computeTiered(basis) {
+    const val = basis.input;
+    if (typeof val !== 'number' || isNaN(val)) {
+      return { val: 0, expr: '— (未输入)', nullish: true };
+    }
+    const brackets = (basis.brackets || []).slice().sort((a, b) => a.min - b.min);
+    let hit = null;
+    for (const b of brackets) {
+      if (val >= b.min) hit = b;
+    }
+    if (!hit) {
+      // 低于所有档位的最小门槛:取最后一档
+      hit = brackets[brackets.length - 1];
+    }
+    const expr = 'input=' + val + (basis.unit === 'percent' ? '%' : '') + ' → 命中 ≥ ' + hit.min + ',score=' + hit.score;
+    return { val: hit.score, expr, nullish: false };
+  }
+
+  function computeCompoundTiered(basis) {
+    const a = basis.a;
+    const b = basis.b;
+    if (typeof a !== 'number' || typeof b !== 'number' || isNaN(a) || isNaN(b)) {
+      return { val: 0, expr: '— (未输入完整两维)', nullish: true };
+    }
+    const table = basis.table || [];
+    if (!table.length) return { val: 0, expr: '— (查找表为空)', nullish: true };
+    // table[i] is the row for the i-th bracket on dim a; each row is array of scores by b bracket index.
+    // 找 a 命中档和 b 命中档:
+    const aBracket = (basis.aBrackets || []).slice().sort((p, q) => p.min - q.min);
+    const bBracket = (basis.bBrackets || []).slice().sort((p, q) => p.min - q.min);
+    let ai = 0, bi = 0;
+    for (let i = 0; i < aBracket.length; i++) if (a >= aBracket[i].min) ai = i;
+    for (let i = 0; i < bBracket.length; i++) if (b >= bBracket[i].min) bi = i;
+    ai = Math.min(ai, table.length - 1);
+    bi = Math.min(bi, (table[ai] || []).length - 1);
+    const score = table[ai][bi];
+    const expr = '规模=' + a + (basis.units && basis.units.a || '') + ' × 增速=' + b + (basis.units && basis.units.b || '') + ' → 表[' + ai + '][' + bi + '] = ' + score;
+    return { val: score, expr, nullish: false };
+  }
+
+  function computeRubric(basis) {
+    const items = (basis.items || []).filter(it => typeof it.score === 'number');
+    if (!items.length) return { val: 0, expr: '— (无有效评分)', nullish: true };
+    const sum = items.reduce((a, it) => a + it.score, 0);
+    const expr = '(' + items.map(it => it.score).join(' + ') + ') / ' + items.length;
+    return { val: sum / items.length, expr, nullish: false };
+  }
+
+  function computeFromBasis(basis) {
+    if (!basis || !basis.type) return { val: 0, expr: '— (未配置)', nullish: true };
+    switch (basis.type) {
+      case SCORE_TYPES.WEIGHTED_AVG: return computeWeightedAvg(basis);
+      case SCORE_TYPES.EQUAL_AVG: return computeEqualAvg(basis);
+      case SCORE_TYPES.TIERED: return computeTiered(basis);
+      case SCORE_TYPES.COMPOUND_TIERED: return computeCompoundTiered(basis);
+      case SCORE_TYPES.RUBRIC: return computeRubric(basis);
+      default: return { val: 0, expr: '— (未知类型)', nullish: true };
+    }
+  }
+
+  // 生成公式的表达符号串(展示用,符号风)
+  function formulaText(basis) {
+    if (!basis || !basis.type) return '—';
+    switch (basis.type) {
+      case SCORE_TYPES.WEIGHTED_AVG:
+        return 'score = Σ(权重 × 比率) / Σ权重';
+      case SCORE_TYPES.EQUAL_AVG:
+        return 'score = AVG(各比率)';
+      case SCORE_TYPES.TIERED:
+        return 'score = f(input),阶梯取整';
+      case SCORE_TYPES.COMPOUND_TIERED:
+        return 'score = lookup(规模档, 增速档)';
+      case SCORE_TYPES.RUBRIC:
+        return 'score = AVG(各子项打分)';
+      default:
+        return '—';
+    }
+  }
+
+  // ============ Calculate ============
+  function getIndScore(ind) {
+    if (!ind.score_basis) return 0;
+    return computeFromBasis(ind.score_basis).val;
+  }
+
+  function calcDimScore(dim) {
+    if (!dim.indicators || !dim.indicators.length) return 0;
+    const sum = dim.indicators.reduce((acc, ind) => acc + getIndScore(ind) * ind.weight, 0);
+    const wsum = dim.indicators.reduce((acc, ind) => acc + ind.weight, 0);
+    if (wsum === 0) return 0;
+    return sum / wsum;
+  }
+
+  function calcTotal() {
+    const wsum = state.dims.reduce((acc, d) => acc + d.weight, 0);
+    if (wsum === 0) return 0;
+    const total = state.dims.reduce((acc, d) => acc + calcDimScore(d) * d.weight, 0);
+    return total / wsum;
+  }
+
+  function indCount() {
+    return state.dims.reduce((acc, d) => acc + d.indicators.length, 0);
+  }
+
+  function weightSum() {
+    return state.dims.reduce((acc, d) => acc + d.weight, 0);
+  }
+
+  // ============ Render ============
+  function render() {
+    renderHeader();
+    renderDims();
+    renderTotal();
+    renderDiagnosis();
+    renderBaselineTag();
+    renderRadar();
+  }
+
+  function renderHeader() {
+    document.getElementById('project-name').value = state.projectName || '';
+    document.getElementById('project-date').value = state.date || '';
+    const ws = weightSum();
+    const wsEl = document.getElementById('weight-status');
+    wsEl.value = ws + '%';
+    if (ws === 100) {
+      wsEl.style.color = 'var(--success)';
+    } else {
+      wsEl.style.color = 'var(--warning)';
+    }
+  }
+
+  function renderTotal() {
+    const total = calcTotal();
+    const g = gradeFor(total);
+    document.getElementById('total-score').textContent = total.toFixed(1);
+    document.getElementById('total-letter').textContent = g.letter;
+    document.getElementById('total-label').textContent = g.label;
+    document.getElementById('meta-dims').textContent = state.dims.length;
+    document.getElementById('meta-inds').textContent = indCount();
+    const ws = weightSum();
+    const wMetaEl = document.getElementById('meta-weight');
+    wMetaEl.textContent = ws + '%';
+    const metaDiv = wMetaEl.closest('.meta');
+    if (ws === 100) {
+      metaDiv.classList.remove('warn');
+      wMetaEl.classList.remove('weight-warn');
+    } else {
+      metaDiv.classList.add('warn');
+      wMetaEl.classList.add('weight-warn');
+    }
+  }
+
+  function renderDims() {
+    const c = document.getElementById('dims-container');
+    if (!state.dims.length) {
+      c.innerHTML = '<div class="empty-hint">暂无维度,点击右上角"+ 添加维度"开始构建指标体系。</div>';
+      return;
+    }
+    c.innerHTML = state.dims.map((dim, dimIdx) => renderDimCard(dim, dimIdx)).join('');
+    bindDimEvents();
+  }
+
+  function renderDimCard(dim, dimIdx) {
+    const ds = calcDimScore(dim);
+    const g = gradeFor(ds);
+    return `
+      <div class="dim-card" draggable="true" data-dim-id="${dim.id}" data-dim-idx="${dimIdx}">
+        <div class="dim-head">
+          <span class="drag-handle" title="拖动排序">≡</span>
+          <span class="code-badge">${escapeHTML(dim.code)}</span>
+          <div class="dim-meta">
+            <div>
+              <span class="dim-name">${escapeHTML(dim.name)}</span>
+              <span class="dim-name-en">${escapeHTML(dim.nameEn || '')}</span>
+            </div>
+            <div class="dim-weight">
+              <span>权重</span>
+              <input type="range" min="0" max="50" step="1" value="${dim.weight}" data-action="change-weight" data-dim-id="${dim.id}">
+              <span class="weight-val">${dim.weight}%</span>
+            </div>
+            <div class="dim-score-bar">
+              <span class="score-num">${ds.toFixed(1)}</span>
+              <span class="g ${gradeClass(g.letter)}">${g.letter}</span>
+              <div class="progress"><div class="progress-fill" style="width:${Math.min(ds, 100)}%"></div></div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn-icon" data-action="edit-dim" data-dim-id="${dim.id}" title="编辑维度">编辑</button>
+            <button class="btn-icon danger" data-action="del-dim" data-dim-id="${dim.id}" title="删除维度">删除</button>
+          </div>
+        </div>
+        <div class="ind-list">
+          ${dim.indicators.length ? `<div class="ind-head">
+            <span></span><span>指标</span><span class="r">权重 / 占比</span><span class="r">得分</span><span></span><span></span>
+          </div>` : ''}
+          ${dim.indicators.map((ind, i) => renderIndRow(dim, ind, i)).join('')}
+        </div>
+        <div class="dim-footer">
+          <button class="btn btn-line" data-action="add-ind" data-dim-id="${dim.id}">+ 添加子指标</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function renderIndRow(dim, ind, idx) {
+    const result = computeFromBasis(ind.score_basis);
+    const g = gradeFor(result.val);
+    const wsum = dim.indicators.reduce((a, i) => a + i.weight, 0);
+    const share = wsum ? (ind.weight / wsum * 100).toFixed(0) : 0;
+    const scoreText = result.nullish ? '—' : result.val.toFixed(1);
+    return `
+      <div class="ind-row" data-ind-id="${ind.id}" data-dim-id="${dim.id}" data-ind-idx="${idx}">
+        <span class="ind-num">${String(idx + 1).padStart(2, '0')}</span>
+        <div class="ind-name">${escapeHTML(ind.name)}<div class="ind-note">${escapeHTML(ind.note || '')}</div></div>
+        <div class="ind-weight" title="原始权重 ${ind.weight},在本维度内实际占比 ${share}%">${ind.weight}<span class="share">占 ${share}%</span></div>
+        <div class="ind-score">${scoreText}</div>
+        <div class="ind-grade"><span class="g ${gradeClass(g.letter)}">${g.letter}</span></div>
+        <div class="actions">
+          <button class="basis-toggle" data-act="toggle-basis" data-dim-id="${dim.id}" data-ind-id="${ind.id}" title="查看/编辑计算式与数据录入">▸ 计算式</button>
+          <button class="btn-icon" data-action="edit-ind" data-dim-id="${dim.id}" data-ind-id="${ind.id}" title="编辑">编辑</button>
+          <button class="btn-icon danger" data-action="del-ind" data-dim-id="${dim.id}" data-ind-id="${ind.id}" title="删除">删除</button>
+        </div>
+      </div>
+      ${renderBasisPanel(dim, ind)}
+    `;
+  }
+
+  // ============ Basis panel rendering (v2) ============
+  function renderBasisPanel(dim, ind) {
+    const basis = ind.score_basis || { type: SCORE_TYPES.RUBRIC, items: [] };
+    const result = computeFromBasis(basis);
+    const g = gradeFor(result.val);
+    const resHtml = result.nullish
+      ? '<span class="res bare">—</span>'
+      : '<span class="res">' + result.val.toFixed(1) + '</span>';
+
+    let inputsHtml;
+    switch (basis.type) {
+      case SCORE_TYPES.WEIGHTED_AVG: inputsHtml = renderWeightedAvgInput(basis); break;
+      case SCORE_TYPES.EQUAL_AVG: inputsHtml = renderEqualAvgInput(basis); break;
+      case SCORE_TYPES.TIERED: inputsHtml = renderTieredInput(basis); break;
+      case SCORE_TYPES.COMPOUND_TIERED: inputsHtml = renderCompoundTieredInput(basis); break;
+      case SCORE_TYPES.RUBRIC: inputsHtml = renderRubricInput(basis); break;
+      default: inputsHtml = '<div style="color:var(--ink-3);font-size:11px;">未知口径类型</div>';
+    }
+
+    return `
+      <div class="ind-basis" data-ind-id="${ind.id}" data-dim-id="${dim.id}">
+        <div class="basis-section">
+          <div class="label">FORMULA</div>
+          <div class="basis-formula">${escapeHTML(formulaText(basis))}</div>
+        </div>
+        <div class="basis-section">
+          <div class="label">DATA</div>
+          <div>${inputsHtml}</div>
+        </div>
+        <div class="basis-section">
+          <div class="label">CALC</div>
+          <div class="basis-compute">${escapeHTML(result.expr)} = ${resHtml} → 等级 ${g.letter}</div>
+        </div>
+        <div class="basis-section">
+          <div class="label">NOTE</div>
+          <textarea class="basis-note" data-act="edit-note" data-dim-id="${dim.id}" data-ind-id="${ind.id}" placeholder="评分说明 / 评估依据(自由文字)">${escapeHTML(ind.note || '')}</textarea>
+        </div>
+      </div>
+    `;
+  }
+
+  function weightedAvgEditor(basis, opts) {
+    const items = basis.items || [];
+    const rows = items.map((it, i) => `
+      <tr data-row-idx="${i}">
+        <td><input class="inp col-label" data-field="label" value="${escapeHTML(it.label || '')}" placeholder="子项名"></td>
+        <td class="col-narrow"><input class="inp col-num" data-field="weight" type="number" step="any" min="0" value="${it.weight != null ? it.weight : ''}" placeholder="权重"></td>
+        <td class="col-narrow"><input class="inp col-num" data-field="rate" type="number" step="any" min="0" max="100" value="${it.rate != null ? it.rate : ''}" placeholder="0-100"></td>
+        <td class="col-action"><button class="btn-icon danger" data-act="del-input" data-row-idx="${i}" title="删除">×</button></td>
+      </tr>
+    `).join('');
+    return `
+      <table class="basis-table">
+        <thead><tr><th>${escapeHTML(opts.itemLabel || '子项')}</th><th>${escapeHTML(opts.wLabel || '权重')}</th><th>${escapeHTML(opts.rLabel || '比率(%)')}</th><th class="col-action"></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button class="basis-add-row" data-act="add-input">+ 添加${escapeHTML(opts.itemLabel || '分项')}</button>
+    `;
+  }
+
+  function renderWeightedAvgInput(basis) {
+    return weightedAvgEditor(basis, { itemLabel: '分项', wLabel: '权重', rLabel: '本地化率(%)' });
+  }
+
+  function renderEqualAvgInput(basis) {
+    const items = basis.items || [];
+    const rows = items.map((it, i) => `
+      <tr data-row-idx="${i}">
+        <td><input class="inp col-label" data-field="label" value="${escapeHTML(it.label || '')}" placeholder="子项名"></td>
+        <td class="col-narrow"><input class="inp col-num" data-field="rate" type="number" step="any" min="0" max="100" value="${it.rate != null ? it.rate : ''}" placeholder="0-100"></td>
+        <td class="col-action"><button class="btn-icon danger" data-act="del-input" data-row-idx="${i}" title="删除">×</button></td>
+      </tr>
+    `).join('');
+    return `
+      <table class="basis-table">
+        <thead><tr><th>子项</th><th>比例(%)</th><th class="col-action"></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button class="basis-add-row" data-act="add-input">+ 添加分项</button>
+    `;
+  }
+
+  function renderTieredInput(basis) {
+    const unitSuffix = basis.unit === 'percent' ? '%' : (basis.unit === 'count' ? '' : (basis.unit || ''));
+    const brackets = (basis.brackets || []).slice().sort((a, b) => a.min - b.min);
+    const bRows = brackets.map((b, i) => `
+      <tr>
+        <td style="font-family:var(--mono);font-size:11px;color:var(--ink-2);">≥ ${b.min}${unitSuffix}</td>
+        <td class="col-narrow"><input class="inp col-num" data-field="bracket-score" data-bracket-idx="${i}" type="number" min="0" max="100" value="${b.score}" placeholder="分值"></td>
+        <td class="col-action"><button class="btn-icon danger" data-act="del-bracket" data-bracket-idx="${i}" title="删除">×</button></td>
+      </tr>
+    `).join('');
+    return `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:11px;color:var(--ink-2);">
+        <label>输入值${unitSuffix ? ' (' + unitSuffix + ')' : ''}:</label>
+        <input class="inp" data-field="input" type="number" step="any" value="${basis.input != null ? basis.input : ''}" style="width:96px;padding:4px 6px;border:1px solid var(--rule);background:var(--surface);text-align:right;">
+      </div>
+      <table class="basis-table">
+        <thead><tr><th>阶梯门槛</th><th>分值</th><th class="col-action"></th></tr></thead>
+        <tbody>${bRows}</tbody>
+      </table>
+      <button class="basis-add-row" data-act="add-bracket">+ 添加一档</button>
+    `;
+  }
+
+  function renderCompoundTieredInput(basis) {
+    const labels = basis.labels || { a: '维度 A', b: '维度 B' };
+    const units = basis.units || { a: '', b: '' };
+    const aB = basis.aBrackets || [];
+    const bB = basis.bBrackets || [];
+    const table = basis.table || [];
+    const labelA = labels.a + (units.a ? ' (' + units.a + ')' : '');
+    const labelB = labels.b + (units.b ? ' (' + units.b + ')' : '');
+    return `
+      <div class="basis-2col">
+        <div class="field"><label>${escapeHTML(labelA)}:</label><input data-field="a" type="number" step="any" value="${basis.a != null ? basis.a : ''}"></div>
+        <div class="field"><label>${escapeHTML(labelB)}:</label><input data-field="b" type="number" step="any" value="${basis.b != null ? basis.b : ''}"></div>
+      </div>
+      <table class="basis-table" style="margin-top:8px;">
+        <thead>
+          <tr>
+            <th style="width:30%;">${escapeHTML(labelA)} ＼ ${escapeHTML(labelB)}</th>
+            ${bB.map(b => `<th style="font-size:10px;">${escapeHTML(b.label || ('≥' + b.min))}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${aB.map((aRow, ai) => `
+            <tr>
+              <th style="text-align:left;font-weight:500;">${escapeHTML(aRow.label || ('≥' + aRow.min))}</th>
+              ${bB.map((bRow, bi) => {
+                const v = (table[ai] || [])[bi];
+                return `<td class="col-narrow"><input class="inp col-num" data-field="table-cell" data-row="${ai}" data-col="${bi}" type="number" min="0" max="100" value="${v != null ? v : ''}"></td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    `;
+  }
+
+  function renderRubricInput(basis) {
+    const items = basis.items || [];
+    const rows = items.map((it, i) => `
+      <tr data-row-idx="${i}">
+        <td><input class="inp col-label" data-field="label" value="${escapeHTML(it.label || '')}" placeholder="评分维度"></td>
+        <td class="col-narrow"><input class="inp col-num" data-field="score" type="number" min="0" max="100" value="${it.score != null ? it.score : ''}" placeholder="0-100"></td>
+        <td class="col-action"><button class="btn-icon danger" data-act="del-input" data-row-idx="${i}" title="删除">×</button></td>
+      </tr>
+    `).join('');
+    return `
+      <table class="basis-table">
+        <thead><tr><th>评分维度</th><th>分值</th><th class="col-action"></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button class="basis-add-row" data-act="add-input">+ 添加评分维度</button>
+    `;
+  }
+
+  // 部分刷新:某个指标改动后只更新相关 DOM,不重渲染整行(避免 input 失焦)
+  function partialRenderFromBasis(dimId, indId) {
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const ind = dim.indicators.find(i => i.id === indId);
+    if (!ind) return;
+    const result = computeFromBasis(ind.score_basis);
+    const g = gradeFor(result.val);
+
+    const row = document.querySelector('.ind-row[data-ind-id="' + indId + '"]');
+    if (row) {
+      const scoreEl = row.querySelector('.ind-score');
+      if (scoreEl) scoreEl.textContent = result.nullish ? '—' : result.val.toFixed(1);
+      const gradeEl = row.querySelector('.ind-grade .g');
+      if (gradeEl) {
+        gradeEl.textContent = g.letter;
+        gradeEl.className = 'g ' + gradeClass(g.letter);
+      }
+    }
+    const basis = document.querySelector('.ind-basis[data-ind-id="' + indId + '"]');
+    if (basis) {
+      const computeBox = basis.querySelector('.basis-compute');
+      if (computeBox) {
+        const resHtml = result.nullish
+          ? '<span class="res bare">—</span>'
+          : '<span class="res">' + result.val.toFixed(1) + '</span>';
+        computeBox.innerHTML = escapeHTML(result.expr) + ' = ' + resHtml + ' → 等级 ' + g.letter;
+      }
+    }
+    partialRenderDimScore(dimId);
+    renderTotal();
+    renderDiagnosis();
+    renderRadar();
+    renderHeader();
+  }
+
+  // ============ Chart (Radar / Bar) ============
+  let radarChart = null;
+  let chartView = 'radar';
+  const CHART_FONT = '"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif';
+
+  function baselineValue(dim) {
+    const b = state.baseline;
+    if (!b || !b.enabled) return null;
+    const v = b.values ? b.values[dim.id] : undefined;
+    return typeof v === 'number' ? v : null;
+  }
+
+  function baselineActive() {
+    return !!(state.baseline && state.baseline.enabled);
+  }
+
+  function renderRadar() {
+    const el = document.getElementById('radar-chart');
+    const fallback = document.getElementById('radar-fallback');
+    if (typeof echarts === 'undefined') {
+      el.style.display = 'none';
+      fallback.style.display = 'block';
+      return;
+    }
+    if (!state.dims.length) {
+      el.style.display = 'none';
+      fallback.style.display = 'block';
+      fallback.querySelector('.msg').innerHTML = '暂无维度数据<br>添加维度后这里会自动显示图表';
+      return;
+    }
+    el.style.display = 'block';
+    fallback.style.display = 'none';
+    if (!radarChart) radarChart = echarts.init(el);
+    radarChart.setOption(chartView === 'bar' ? barOption() : radarOption(), true);
+  }
+
+  function radarOption() {
+    const wsum = weightSum();
+    const meta = {};
+    state.dims.forEach(d => {
+      const s = calcDimScore(d);
+      meta[d.name] = {
+        score: s.toFixed(1),
+        share: wsum ? Math.round(d.weight / wsum * 100) : 0,
+        weak: 'DE'.includes(gradeFor(s).letter)
+      };
+    });
+
+    const series = [{
+      value: state.dims.map(d => parseFloat(calcDimScore(d).toFixed(1))),
+      name: state.projectName || '本次评分',
+      areaStyle: { color: 'rgba(36, 64, 94, 0.18)' },
+      lineStyle: { color: '#24405e', width: 2 },
+      itemStyle: { color: '#24405e' },
+      label: { show: true, formatter: '{c}', fontSize: 11, color: '#24405e' }
+    }];
+
+    if (baselineActive()) {
+      series.push({
+        value: state.dims.map(d => baselineValue(d) ?? 0),
+        name: state.baseline.name || '对标',
+        areaStyle: { color: 'rgba(176, 56, 42, 0.08)' },
+        lineStyle: { color: '#b0382a', width: 2, type: 'dashed' },
+        itemStyle: { color: '#b0382a' },
+        label: { show: false }
+      });
+    }
+
+    return {
+      textStyle: { fontFamily: CHART_FONT },
+      tooltip: { trigger: 'item' },
+      legend: baselineActive()
+        ? { bottom: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 12, color: '#59544c' } }
+        : { show: false },
+      radar: {
+        indicator: state.dims.map(d => ({ name: d.name, max: 100 })),
+        shape: 'polygon',
+        splitNumber: 5,
+        center: ['50%', '48%'],
+        radius: '62%',
+        axisName: {
+          formatter: (name) => {
+            const m = meta[name];
+            if (!m) return name;
+            return `{${m.weak ? 'weak' : 'ok'}|${name}}\n{sub|权重 ${m.share}% · ${m.score}}`;
+          },
+          rich: {
+            ok: { color: '#1b1917', fontSize: 13, fontWeight: 600 },
+            weak: { color: '#b0382a', fontSize: 13, fontWeight: 600 },
+            sub: { color: '#9a9488', fontSize: 11, padding: [3, 0, 0, 0] }
+          }
+        },
+        splitLine: { lineStyle: { color: '#d6cfc0' } },
+        splitArea: { areaStyle: { color: ['rgba(36,64,94,0.03)', 'rgba(36,64,94,0.055)', 'rgba(36,64,94,0.08)', 'rgba(36,64,94,0.105)', 'rgba(36,64,94,0.13)'] } },
+        axisLine: { lineStyle: { color: '#d6cfc0' } }
+      },
+      series: [{ type: 'radar', symbol: 'circle', symbolSize: 6, data: series }]
+    };
+  }
+
+  const GRADE_COLOR = { A: '#2f6b4f', B: '#24405e', C: '#a2761d', D: '#b0382a', E: '#7a2018' };
+
+  function barOption() {
+    const rows = state.dims
+      .map(d => ({ dim: d, score: parseFloat(calcDimScore(d).toFixed(1)) }))
+      .sort((a, b) => a.score - b.score);
+    const wsum = weightSum();
+
+    const series = [{
+      type: 'bar',
+      name: state.projectName || '本次评分',
+      barMaxWidth: 14,
+      data: rows.map(r => ({
+        value: r.score,
+        itemStyle: { color: GRADE_COLOR[gradeFor(r.score).letter], borderRadius: [0, 3, 3, 0] }
+      })),
+      label: { show: true, position: 'right', fontSize: 11, color: '#59544c', formatter: '{c}' }
+    }];
+
+    if (baselineActive()) {
+      series.push({
+        type: 'bar',
+        name: state.baseline.name || '对标',
+        barMaxWidth: 14,
+        data: rows.map(r => baselineValue(r.dim) ?? 0),
+        itemStyle: { color: 'rgba(176,56,42,0.40)', borderRadius: [0, 3, 3, 0] }
+      });
+    }
+
+    return {
+      textStyle: { fontFamily: CHART_FONT },
+      tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
+      legend: baselineActive()
+        ? { top: 0, itemWidth: 14, itemHeight: 8, textStyle: { fontSize: 12, color: '#59544c' } }
+        : { show: false },
+      grid: { left: 8, right: 46, top: baselineActive() ? 34 : 12, bottom: 8, containLabel: true },
+      xAxis: {
+        type: 'value', max: 100,
+        splitLine: { lineStyle: { color: '#d6cfc0' } },
+        axisLabel: { color: '#9a9488', fontSize: 11 }
+      },
+      yAxis: {
+        type: 'category',
+        data: rows.map(r => `${r.dim.name} ${wsum ? Math.round(r.dim.weight / wsum * 100) : 0}%`),
+        axisLine: { show: false },
+        axisTick: { show: false },
+        axisLabel: { color: '#1b1917', fontSize: 12 }
+      },
+      series: series
+    };
+  }
+
+  // ============ Diagnosis ============
+  function improvementList() {
+    const dw = weightSum();
+    if (!dw) return [];
+    const out = [];
+    state.dims.forEach(dim => {
+      const iw = dim.indicators.reduce((a, i) => a + i.weight, 0);
+      if (!iw) return;
+      dim.indicators.forEach(ind => {
+        const gw = (dim.weight / dw) * (ind.weight / iw);
+        const sc = getIndScore(ind);
+        if (sc >= 100) return;
+        out.push({ dim, ind, score: sc, gain: gw * (100 - sc) });
+      });
+    });
+    return out.sort((a, b) => b.gain - a.gain);
+  }
+
+  const DIAG_TOP = 6;
+
+  function renderDiagnosis() {
+    const card = document.getElementById('diag-card');
+    const list = improvementList().filter(x => x.gain > 0).slice(0, DIAG_TOP);
+    if (!list.length) {
+      card.innerHTML = '<div class="diag-empty">暂无可诊断的短板 — 需要维度权重和子指标数据。</div>';
+      return;
+    }
+    const total = calcTotal();
+    const lift = list.reduce((a, x) => a + x.gain, 0);
+    const maxGain = list[0].gain;
+
+    card.innerHTML = `
+      <div class="diag-head">
+        <h3>短板诊断<span class="hint">按「全局权重 × 失分空间」排序,即补齐该项可为总分带来的增量</span></h3>
+        <div class="summary">补齐这 ${list.length} 项 → ${total.toFixed(1)} 分提升至 <strong>${(total + lift).toFixed(1)}</strong> 分</div>
+      </div>
+      ${list.map((x, i) => `
+        <div class="diag-row">
+          <span class="rank">${i + 1}</span>
+          <span class="dcode">${escapeHTML(x.dim.code)}</span>
+          <span>${escapeHTML(x.ind.name)}</span>
+          <span class="cur">${x.score.toFixed(1)}<span class="track"><i style="width:${Math.min(x.score, 100)}%"></i></span></span>
+          <span class="gain" title="该指标提升至 100 分可带来的总分增量">+${x.gain.toFixed(2)}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+
+  // ============ Basis Events ============
+  function onToggleBasis(e) {
+    const btn = e.currentTarget;
+    const indId = btn.dataset.indId;
+    const basis = document.querySelector('.ind-basis[data-ind-id="' + indId + '"]');
+    if (!basis) return;
+    const willOpen = !basis.classList.contains('show');
+    basis.classList.toggle('show', willOpen);
+    btn.classList.toggle('on', willOpen);
+    btn.textContent = willOpen ? '▾ 计算式' : '▸ 计算式';
+  }
+
+  function onIndNote(dimId, indId, t) {
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const ind = dim.indicators.find(i => i.id === indId);
+    if (!ind) return;
+    ind.note = t.value;
+    debouncedSave();
+  }
+
+  function onBasisInput(dimId, indId, t) {
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const ind = dim.indicators.find(i => i.id === indId);
+    if (!ind) return;
+    const basis = ind.score_basis;
+    if (!basis) return;
+    const tr = t.closest('tr');
+    const rowIdx = tr ? parseInt(tr.dataset.rowIdx, 10) : -1;
+    const field = t.dataset.field;
+    const raw = t.value.trim();
+    let val = raw;
+
+    if (basis.type === SCORE_TYPES.WEIGHTED_AVG || basis.type === SCORE_TYPES.EQUAL_AVG) {
+      if (rowIdx < 0 || !basis.items || !basis.items[rowIdx]) return;
+      if (field === 'label') basis.items[rowIdx].label = val;
+      else if (field === 'weight') basis.items[rowIdx].weight = raw === '' ? null : clampNum(raw, 0, 1000);
+      else if (field === 'rate') basis.items[rowIdx].rate = raw === '' ? null : clampNum(raw, 0, 100);
+      t.classList.toggle('warn', isBasisInputWarn(field, raw));
+    } else if (basis.type === SCORE_TYPES.RUBRIC) {
+      if (rowIdx < 0 || !basis.items || !basis.items[rowIdx]) return;
+      if (field === 'label') basis.items[rowIdx].label = val;
+      else if (field === 'score') basis.items[rowIdx].score = raw === '' ? null : clampNum(raw, 0, 100);
+      t.classList.toggle('warn', isBasisInputWarn(field, raw));
+    } else if (basis.type === SCORE_TYPES.TIERED) {
+      if (field === 'input') {
+        basis.input = raw === '' ? null : clampNum(raw, -1e9, 1e9);
+        t.classList.toggle('warn', isBasisInputWarn('input', raw));
+      } else if (field === 'bracket-score') {
+        const bIdx = parseInt(t.dataset.bracketIdx, 10);
+        if (basis.brackets && basis.brackets[bIdx]) basis.brackets[bIdx].score = clampNum(raw, 0, 100);
+      }
+    } else if (basis.type === SCORE_TYPES.COMPOUND_TIERED) {
+      if (field === 'a') {
+        basis.a = raw === '' ? null : clampNum(raw, -1e9, 1e9);
+        t.classList.toggle('warn', isBasisInputWarn('a', raw));
+      } else if (field === 'b') {
+        basis.b = raw === '' ? null : clampNum(raw, -1e9, 1e9);
+        t.classList.toggle('warn', isBasisInputWarn('b', raw));
+      } else if (field === 'table-cell') {
+        const ai = parseInt(t.dataset.row, 10);
+        const bi = parseInt(t.dataset.col, 10);
+        if (!basis.table[ai]) basis.table[ai] = [];
+        basis.table[ai][bi] = raw === '' ? null : clampNum(raw, 0, 100);
+        t.classList.toggle('warn', isBasisInputWarn('cell', raw));
+      }
+    }
+    debouncedSave();
+    partialRenderFromBasis(dimId, indId);
+  }
+
+  function isBasisInputWarn(field, raw) {
+    if (raw === '') return false;
+    if (isNaN(parseFloat(raw))) return true;
+    if ((field === 'rate' || field === 'score') && (parseFloat(raw) < 0 || parseFloat(raw) > 100)) return true;
+    if (field === 'cell' && (parseFloat(raw) < 0 || parseFloat(raw) > 100)) return true;
+    if (field === 'weight' && parseFloat(raw) < 0) return true;
+    return false;
+  }
+
+  function onAddInputRow(dimId, indId) {
+    const dim = state.dims.find(d => d.id === dimId);
+    const ind = dim && dim.indicators.find(i => i.id === indId);
+    if (!ind || !ind.score_basis) return;
+    if (ind.score_basis.type === SCORE_TYPES.WEIGHTED_AVG) {
+      ind.score_basis.items.push({ label: '新分项', weight: 1, rate: 50 });
+    } else if (ind.score_basis.type === SCORE_TYPES.EQUAL_AVG) {
+      ind.score_basis.items.push({ label: '新分项', rate: 50 });
+    } else if (ind.score_basis.type === SCORE_TYPES.RUBRIC) {
+      ind.score_basis.items.push({ label: '新评分维度', score: 50 });
+    } else return;
+    debouncedSave();
+    render();
+  }
+
+  function onDelInputRow(dimId, indId, btn) {
+    const dim = state.dims.find(d => d.id === dimId);
+    const ind = dim && dim.indicators.find(i => i.id === indId);
+    if (!ind || !ind.score_basis || !ind.score_basis.items) return;
+    const tr = btn.closest('tr');
+    const idx = parseInt(tr.dataset.rowIdx, 10);
+    if (isNaN(idx) || idx < 0) return;
+    ind.score_basis.items.splice(idx, 1);
+    debouncedSave();
+    render();
+  }
+
+  function onAddBracket(dimId, indId) {
+    const dim = state.dims.find(d => d.id === dimId);
+    const ind = dim && dim.indicators.find(i => i.id === indId);
+    if (!ind || !ind.score_basis || ind.score_basis.type !== SCORE_TYPES.TIERED) return;
+    if (!ind.score_basis.brackets) ind.score_basis.brackets = [];
+    const last = ind.score_basis.brackets[ind.score_basis.brackets.length - 1];
+    ind.score_basis.brackets.push({ min: (last ? last.min + 5 : 0), score: 0 });
+    debouncedSave();
+    render();
+  }
+
+  function onDelBracket(dimId, indId, btn) {
+    const dim = state.dims.find(d => d.id === dimId);
+    const ind = dim && dim.indicators.find(i => i.id === indId);
+    if (!ind || !ind.score_basis || !ind.score_basis.brackets) return;
+    const idx = parseInt(btn.dataset.bracketIdx, 10);
+    if (isNaN(idx) || idx < 0 || ind.score_basis.brackets.length <= 1) return;
+    ind.score_basis.brackets.splice(idx, 1);
+    debouncedSave();
+    render();
+  }
+
+// ============ Events: Dims & Indicators ============
+  function bindDimEvents() {
+    document.querySelectorAll('[data-action="edit-dim"]').forEach(b => b.addEventListener('click', onEditDim));
+    document.querySelectorAll('[data-action="del-dim"]').forEach(b => b.addEventListener('click', onDelDim));
+    document.querySelectorAll('[data-action="add-ind"]').forEach(b => b.addEventListener('click', onAddInd));
+    document.querySelectorAll('[data-action="edit-ind"]').forEach(b => b.addEventListener('click', onEditInd));
+    document.querySelectorAll('[data-action="del-ind"]').forEach(b => b.addEventListener('click', onDelInd));
+    document.querySelectorAll('[data-action="change-weight"]').forEach(b => b.addEventListener('input', onChangeWeight));
+    document.querySelectorAll('[data-act="toggle-basis"]').forEach(b => b.addEventListener('click', onToggleBasis));
+
+    // basis panel delegated events
+    document.querySelectorAll('.ind-basis').forEach(basis => {
+      const dimId = basis.dataset.dimId;
+      const indId = basis.dataset.indId;
+      basis.addEventListener('input', (e) => {
+        const t = e.target;
+        if (t.tagName === 'TEXTAREA' && t.dataset.act === 'edit-note') {
+          onIndNote(dimId, indId, t);
+          return;
+        }
+        if (t.matches('input.inp')) onBasisInput(dimId, indId, t);
+      });
+      basis.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const act = btn.dataset.act;
+        if (act === 'add-input') onAddInputRow(dimId, indId);
+        else if (act === 'del-input') onDelInputRow(dimId, indId, btn);
+        else if (act === 'add-bracket') onAddBracket(dimId, indId);
+        else if (act === 'del-bracket') onDelBracket(dimId, indId, btn);
+      });
+    });
+
+    // drag and drop
+    document.querySelectorAll('.dim-card').forEach(card => {
+      card.addEventListener('dragstart', onDragStart);
+      card.addEventListener('dragend', onDragEnd);
+      card.addEventListener('dragover', onDragOver);
+      card.addEventListener('dragleave', onDragLeave);
+      card.addEventListener('drop', onDrop);
+    });
+  }
+
+  function onChangeWeight(e) {
+    const dimId = e.target.dataset.dimId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    dim.weight = parseInt(e.target.value, 10) || 0;
+    debouncedSave();
+    // partial update: just the score of this dim and total
+    partialRenderDimScore(dimId);
+    renderTotal();
+    renderDiagnosis();
+    renderRadar();
+    renderHeader();
+  }
+
+  function partialRenderDimScore(dimId) {
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const card = document.querySelector(`.dim-card[data-dim-id="${dimId}"]`);
+    if (!card) return;
+    const ds = calcDimScore(dim);
+    const g = gradeFor(ds);
+    const weightVal = card.querySelector('.weight-val');
+    if (weightVal) weightVal.textContent = dim.weight + '%';
+    const scoreNum = card.querySelector('.score-num');
+    const scoreGrade = card.querySelector('.dim-score-bar .g');
+    const fill = card.querySelector('.progress-fill');
+    if (scoreNum) scoreNum.textContent = ds.toFixed(1);
+    if (scoreGrade) {
+      scoreGrade.textContent = g.letter;
+      scoreGrade.className = 'g ' + gradeClass(g.letter);
+    }
+    if (fill) fill.style.width = Math.min(ds, 100) + '%';
+  }
+
+  function onEditDim(e) {
+    const dimId = e.currentTarget.dataset.dimId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    openModal(`
+      <h3>编辑维度</h3>
+      <div class="form-row">
+        <label>代码</label>
+        <input id="m-code" value="${escapeHTML(dim.code)}" maxlength="8">
+      </div>
+      <div class="form-row">
+        <label>中文名</label>
+        <input id="m-name" value="${escapeHTML(dim.name)}">
+      </div>
+      <div class="form-row">
+        <label>英文名</label>
+        <input id="m-nameEn" value="${escapeHTML(dim.nameEn || '')}">
+      </div>
+      <div class="form-row">
+        <label>权重 (%)</label>
+        <input id="m-weight" type="number" min="0" max="100" value="${dim.weight}">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-solid" data-modal="ok">保存</button>
+      </div>
+    `, () => {
+      const newCode = document.getElementById('m-code').value.trim() || dim.code;
+      const newName = document.getElementById('m-name').value.trim() || dim.name;
+      const newNameEn = document.getElementById('m-nameEn').value.trim();
+      const newWeight = Math.max(0, Math.min(100, parseInt(document.getElementById('m-weight').value, 10) || 0));
+      // duplicate code check
+      if (newCode !== dim.code && state.dims.some(d => d.code === newCode)) {
+        toast('代码 "' + newCode + '" 已被占用');
+        return false;
+      }
+      dim.code = newCode;
+      dim.name = newName;
+      dim.nameEn = newNameEn;
+      dim.weight = newWeight;
+      debouncedSave();
+      render();
+    });
+  }
+
+  function onDelDim(e) {
+    const dimId = e.currentTarget.dataset.dimId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    openModal(`
+      <h3>删除维度</h3>
+      <p class="confirm-msg">确定要删除维度 <strong>${escapeHTML(dim.name)}</strong> 及其下 <strong>${dim.indicators.length}</strong> 个子指标吗?此操作不可撤销。</p>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-danger" data-modal="ok">删除</button>
+      </div>
+    `, () => {
+      state.dims = state.dims.filter(d => d.id !== dimId);
+      debouncedSave();
+      render();
+    });
+  }
+
+  function onAddInd(e) {
+    const dimId = e.currentTarget.dataset.dimId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const newInd = {
+      id: uid('ind'),
+      name: '新指标',
+      weight: 5,
+      score_basis: {
+        type: SCORE_TYPES.RUBRIC,
+        items: [
+          { label: '子项 1', score: 50 },
+          { label: '子项 2', score: 50 },
+          { label: '子项 3', score: 50 }
+        ]
+      },
+      note: ''
+    };
+    dim.indicators.push(newInd);
+    debouncedSave();
+    render();
+    // auto-enter edit mode
+    setTimeout(() => {
+      const row = document.querySelector(`.ind-row[data-ind-id="${newInd.id}"]`);
+      if (row) enterIndEditMode(dim, newInd, row);
+    }, 50);
+  }
+
+  function onEditInd(e) {
+    const dimId = e.currentTarget.dataset.dimId;
+    const indId = e.currentTarget.dataset.indId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const ind = dim.indicators.find(i => i.id === indId);
+    if (!ind) return;
+    const row = document.querySelector(`.ind-row[data-ind-id="${indId}"]`);
+    enterIndEditMode(dim, ind, row);
+  }
+
+  function enterIndEditMode(dim, ind, row) {
+    if (!row) return;
+    row.classList.add('editing');
+    const computed = computeFromBasis(ind.score_basis || { type: 'rubric', items: [] });
+    row.innerHTML = `
+      <span class="ind-num">${String(dim.indicators.indexOf(ind) + 1).padStart(2, '0')}</span>
+      <input class="ie-name" value="${escapeHTML(ind.name)}" placeholder="指标名称">
+      <input class="ie-weight" type="number" min="0" max="100" value="${ind.weight}" title="权重%">
+      <div class="ie-score-hint" style="font-family:var(--mono);font-size:11px;color:var(--ink-3);text-align:right;line-height:1.4;">实时得分<br><span style="font-size:14px;color:var(--vermilion);font-weight:600;">${computed.nullish ? '—' : computed.val.toFixed(1)}</span></div>
+      <div class="ind-grade"><span class="g grade-C">C</span></div>
+      <div class="actions">
+        <button class="btn-icon" data-action="save-ind" title="保存">保存</button>
+        <button class="btn-icon danger" data-action="cancel-ind" title="取消">取消</button>
+      </div>
+      <textarea class="ie-note" placeholder="评分理由 / 说明(可选)">${escapeHTML(ind.note || '')}</textarea>
+    `;
+    row.querySelector('[data-action="save-ind"]').addEventListener('click', () => {
+      const name = row.querySelector('.ie-name').value.trim() || ind.name;
+      const weight = Math.max(0, Math.min(100, parseInt(row.querySelector('.ie-weight').value, 10) || 0));
+      const note = row.querySelector('.ie-note').value.trim();
+      ind.name = name;
+      ind.weight = weight;
+      ind.note = note;
+      debouncedSave();
+      render();
+    });
+    row.querySelector('[data-action="cancel-ind"]').addEventListener('click', () => render());
+    const nameInput = row.querySelector('.ie-name');
+    nameInput.focus();
+    nameInput.select();
+  }
+
+  function onDelInd(e) {
+    const dimId = e.currentTarget.dataset.dimId;
+    const indId = e.currentTarget.dataset.indId;
+    const dim = state.dims.find(d => d.id === dimId);
+    if (!dim) return;
+    const ind = dim.indicators.find(i => i.id === indId);
+    if (!ind) return;
+    openModal(`
+      <h3>删除子指标</h3>
+      <p class="confirm-msg">确定要删除子指标 <strong>${escapeHTML(ind.name)}</strong> 吗?</p>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-danger" data-modal="ok">删除</button>
+      </div>
+    `, () => {
+      dim.indicators = dim.indicators.filter(i => i.id !== indId);
+      debouncedSave();
+      render();
+    });
+  }
+
+  // ============ Drag & Drop ============
+  let dragSrcId = null;
+
+  function onDragStart(e) {
+    dragSrcId = e.currentTarget.dataset.dimId;
+    e.currentTarget.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', dragSrcId); } catch(_) {}
+  }
+  function onDragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.dim-card').forEach(c => c.classList.remove('drag-over'));
+  }
+  function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const tgt = e.currentTarget;
+    if (tgt.dataset.dimId !== dragSrcId) tgt.classList.add('drag-over');
+  }
+  function onDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+  function onDrop(e) {
+    e.preventDefault();
+    const tgtId = e.currentTarget.dataset.dimId;
+    if (!dragSrcId || tgtId === dragSrcId) return;
+    const srcIdx = state.dims.findIndex(d => d.id === dragSrcId);
+    const tgtIdx = state.dims.findIndex(d => d.id === tgtId);
+    if (srcIdx < 0 || tgtIdx < 0) return;
+    const [moved] = state.dims.splice(srcIdx, 1);
+    state.dims.splice(tgtIdx, 0, moved);
+    debouncedSave();
+    render();
+  }
+
+  // ============ Add Dimension ============
+  document.getElementById('btn-add-dim').addEventListener('click', () => {
+    openModal(`
+      <h3>添加维度</h3>
+      <div class="form-row">
+        <label>代码</label>
+        <input id="m-code" value="${nextDimCode()}" maxlength="8">
+      </div>
+      <div class="form-row">
+        <label>中文名</label>
+        <input id="m-name" value="新维度">
+      </div>
+      <div class="form-row">
+        <label>英文名</label>
+        <input id="m-nameEn" value="">
+      </div>
+      <div class="form-row">
+        <label>权重 (%)</label>
+        <input id="m-weight" type="number" min="0" max="100" value="10">
+      </div>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-solid" data-modal="ok">添加</button>
+      </div>
+    `, () => {
+      const code = document.getElementById('m-code').value.trim() || nextDimCode();
+      if (state.dims.some(d => d.code === code)) {
+        toast('代码 "' + code + '" 已被占用');
+        return false;
+      }
+      const newDim = {
+        id: uid('dim'),
+        code: code,
+        name: document.getElementById('m-name').value.trim() || '新维度',
+        nameEn: document.getElementById('m-nameEn').value.trim(),
+        weight: Math.max(0, Math.min(100, parseInt(document.getElementById('m-weight').value, 10) || 10)),
+        indicators: []
+      };
+      state.dims.push(newDim);
+      debouncedSave();
+      render();
+    });
+  });
+
+  // ============ Header Inputs ============
+  document.getElementById('project-name').addEventListener('input', (e) => {
+    state.projectName = e.target.value;
+    debouncedSave();
+    renderRadar();
+  });
+  document.getElementById('project-date').addEventListener('change', (e) => {
+    state.date = e.target.value;
+    debouncedSave();
+  });
+
+  // ============ Chart View Toggle ============
+  document.getElementById('view-seg').addEventListener('click', (e) => {
+    const btn = e.target.closest('button[data-view]');
+    if (!btn) return;
+    chartView = btn.dataset.view;
+    document.querySelectorAll('#view-seg button').forEach(b => b.classList.toggle('active', b === btn));
+    renderRadar();
+  });
+
+  // ============ Baseline ============
+  function renderBaselineTag() {
+    const tag = document.getElementById('baseline-tag');
+    if (baselineActive()) {
+      tag.classList.add('on');
+      tag.textContent = '对标 · ' + (state.baseline.name || '基准');
+    } else {
+      tag.classList.remove('on');
+      tag.textContent = '设置对标';
+    }
+  }
+
+  document.getElementById('baseline-tag').addEventListener('click', () => {
+    if (!state.dims.length) { toast('请先添加维度'); return; }
+    const b = state.baseline || {};
+    openModal(`
+      <h3>设置对标基准</h3>
+      <div class="form-row">
+        <label>基准名称</label>
+        <input id="m-bname" value="${escapeHTML(b.name || '标杆城市')}" placeholder="例:西安阎良 / 行业均值">
+      </div>
+      ${state.dims.map(d => `
+        <div class="form-row">
+          <label>${escapeHTML(d.code)} ${escapeHTML(d.name)}</label>
+          <input class="m-bval" data-dim-id="${d.id}" type="number" min="0" max="100"
+                 value="${baselineValue(d) ?? (b.values && b.values[d.id]) ?? 70}">
+        </div>
+      `).join('')}
+      <div class="modal-actions">
+        ${baselineActive() ? '<button class="btn btn-line" data-modal="ok" data-off="1">关闭对标</button>' : ''}
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-solid" data-modal="ok">应用</button>
+      </div>
+    `, (btn) => {
+      if (btn && btn.dataset.off) {
+        if (state.baseline) state.baseline.enabled = false;
+      } else {
+        const values = {};
+        document.querySelectorAll('.m-bval').forEach(i => {
+          values[i.dataset.dimId] = Math.max(0, Math.min(100, parseInt(i.value, 10) || 0));
+        });
+        state.baseline = {
+          enabled: true,
+          name: document.getElementById('m-bname').value.trim() || '对标',
+          values: values
+        };
+      }
+      debouncedSave();
+      renderBaselineTag();
+      renderRadar();
+    });
+  });
+
+  // ============ Top Buttons ============
+  document.getElementById('btn-new').addEventListener('click', () => {
+    openModal(`
+      <h3>新建项目</h3>
+      <p class="confirm-msg">将清除当前所有编辑,恢复为初始 6 维 23 项模板。<br>请确保已先导出 JSON 备份,此操作不可撤销。</p>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-danger" data-modal="ok">确认重置</button>
+      </div>
+    `, () => {
+      resetToTemplate();
+      render();
+      toast('已重置为初始模板');
+    });
+  });
+
+  document.getElementById('btn-import').addEventListener('click', () => {
+    document.getElementById('file-input').click();
+  });
+
+  // 只把模板里的名称与说明文字覆盖回来,权重和分数保持不动。
+  // 存在的意义:文件里的模板改了,但页面读的是 localStorage 副本,否则只能整个重置。
+  document.getElementById('btn-reload-text').addEventListener('click', () => {
+    openModal(`
+      <h3>重载模板文字</h3>
+      <p class="confirm-msg">将用文件内模板覆盖<strong>维度名称、指标名称、评分说明</strong>,按 ID 逐条匹配。<br>
+      你调整过的<strong>权重与评分口径(score_basis)原样保留</strong>,自行新增的条目不受影响。<br>
+      若你手改过某条说明文字,该处改动会被覆盖。</p>
+      <div class="modal-actions">
+        <button class="btn btn-line" data-modal="cancel">取消</button>
+        <button class="btn btn-solid" data-modal="ok">重载文字</button>
+      </div>
+    `, () => {
+      let dimN = 0, indN = 0, skipped = 0;
+      TEMPLATE.dims.forEach(td => {
+        const d = state.dims.find(x => x.id === td.id);
+        if (!d) { skipped++; return; }
+        d.code = td.code;
+        d.name = td.name;
+        d.nameEn = td.nameEn;
+        dimN++;
+        td.indicators.forEach(ti => {
+          const ind = d.indicators.find(x => x.id === ti.id);
+          if (!ind) { skipped++; return; }
+          ind.name = ti.name;
+          ind.note = ti.note;
+          indN++;
+        });
+      });
+      saveState();
+      render();
+      toast(`已重载 ${dimN} 个维度 / ${indN} 项指标的文字` + (skipped ? `,${skipped} 项无匹配已跳过` : ''));
+    });
+  });
+
+  const fileInput = document.createElement('input');
+  fileInput.type = 'file';
+  fileInput.accept = '.json,application/json';
+  fileInput.style.display = 'none';
+  fileInput.id = 'file-input';
+  document.body.appendChild(fileInput);
+  fileInput.addEventListener('change', (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const obj = JSON.parse(reader.result);
+        if (!obj.dims || !Array.isArray(obj.dims)) throw new Error('JSON 格式不正确');
+        state = obj;
+        state.schemaVersion = state.schemaVersion || 1;
+        if (state.schemaVersion !== SCHEMA_VERSION) {
+          state = migrateState(state);
+          pendingMigration = null;  // 导入时不弹横幅
+        }
+        saveState();
+        render();
+        toast('导入成功:共 ' + state.dims.length + ' 个维度,' + indCount() + ' 个指标');
+      } catch(err) {
+        toast('导入失败:' + err.message);
+      }
+      fileInput.value = '';
+    };
+    reader.readAsText(f, 'utf-8');
+  });
+
+  document.getElementById('btn-export-json').addEventListener('click', () => {
+    const payload = {
+      schema_version: SCHEMA_VERSION,
+      projectName: state.projectName,
+      date: state.date,
+      baseline: state.baseline || null,
+      dims: state.dims
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    const fname = (state.projectName || '评价项目') + '_' + (state.date || new Date().toISOString().slice(0, 10)) + '.json';
+    a.download = fname.replace(/[\\/:*?"<>|]/g, '_');
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+    toast('JSON 已导出');
+  });
+
+  document.getElementById('btn-export-pdf').addEventListener('click', async () => {
+    if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+      toast('需要联网加载 html2canvas / jsPDF 才能导出 PDF');
+      return;
+    }
+    const btn = document.getElementById('btn-export-pdf');
+    const original = btn.textContent;
+    btn.textContent = '正在生成…';
+    btn.disabled = true;
+    // 临时插入计算过程附录(导出完成后立即移除,不影响正常使用)
+    const target = document.getElementById('report-area');
+    const appendix = document.createElement('div');
+    appendix.id = 'calc-appendix-tmp';
+    appendix.innerHTML = buildCalcAppendix();
+    target.appendChild(appendix);
+    try {
+      const canvas = await html2canvas(target, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#f4f1e9',
+        logging: false
+      });
+      const imgData = canvas.toDataURL('image/png');
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+      const margin = 10;
+      const imgW = pdfW - margin * 2;
+      const imgH = canvas.height * imgW / canvas.width;
+      let heightLeft = imgH;
+      let position = margin;
+      pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+      heightLeft -= (pdfH - margin * 2);
+      while (heightLeft > 0) {
+        position = heightLeft - imgH + margin;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', margin, position, imgW, imgH);
+        heightLeft -= (pdfH - margin * 2);
+      }
+      const fname = (state.projectName || '评价报告') + '_' + (state.date || new Date().toISOString().slice(0, 10)) + '.pdf';
+      pdf.save(fname.replace(/[\\/:*?"<>|]/g, '_'));
+      btn.textContent = '已导出';
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+    } catch(e) {
+      console.error(e);
+      btn.textContent = '导出失败';
+      toast('PDF 导出失败:' + e.message);
+      setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2500);
+    } finally {
+      appendix.remove();
+    }
+  });
+
+  // ============ Migration Banner (v1 → v2) ============
+  const MIGRATION_DISMISS_KEY = 'industry-chain-eval-v2-migrated';
+
+  function renderMigrationBanner() {
+    if (!pendingMigration) return;
+    if (localStorage.getItem(MIGRATION_DISMISS_KEY) === '1') {
+      pendingMigration = null;
+      return;
+    }
+    const { count, inconsistentIds } = pendingMigration;
+    // 找出这些 id 对应的指标名
+    const lookupName = (id) => {
+      for (const d of state.dims) {
+        const f = (d.indicators || []).find(x => x.id === id);
+        if (f) return f.name;
+      }
+      return id;
+    };
+    let warnHtml = '';
+    if (inconsistentIds && inconsistentIds.length) {
+      const list = inconsistentIds.map(id => lookupName(id)).join('、');
+      warnHtml = `<br><strong>偏离较大的指标(${inconsistentIds.length}):</strong><span style="color:var(--vermilion);">${escapeHTML(list)}</span>。<br>原因是历史手填分数与新默认数据不一致。展开行内「▸ 计算式」复核数据,如口径不同请调整输入。`;
+    }
+    const banner = document.createElement('div');
+    banner.className = 'migration-banner';
+    banner.id = 'migration-banner';
+    banner.innerHTML = `
+      <span class="mb-icon">v2</span>
+      <div class="mb-text">
+        <strong>评分体系已升级到 v2。</strong>
+        你的 <strong>${count}</strong> 个历史手填得分已按 ID 匹配到结构化数据,自动重算并展示。
+        如需微调,展开行内「▸ 计算式」面板即可输入原始数据,得分会随之更新。${warnHtml}
+      </div>
+      <button class="mb-dismiss" id="mb-dismiss">知道了</button>
+    `;
+    const report = document.getElementById('report-area');
+    if (report.firstElementChild) {
+      report.insertBefore(banner, report.firstElementChild);
+    } else {
+      report.appendChild(banner);
+    }
+    document.getElementById('mb-dismiss').addEventListener('click', () => {
+      try { localStorage.setItem(MIGRATION_DISMISS_KEY, '1'); } catch(_) {}
+      banner.remove();
+      pendingMigration = null;
+    });
+  }
+
+  // ============ Calc Appendix (PDF export only) ============
+  function formatBasisAsText(basis) {
+    if (!basis) return '—';
+    switch (basis.type) {
+      case SCORE_TYPES.WEIGHTED_AVG:
+        return (basis.items || []).map(it =>
+          (it.label || '?') + ': 权重=' + (it.weight != null ? it.weight : '—') +
+          ', 比率=' + (it.rate != null ? it.rate : '—') + '%'
+        ).join('; ');
+      case SCORE_TYPES.EQUAL_AVG:
+        return (basis.items || []).map(it =>
+          (it.label || '?') + ': ' + (it.rate != null ? it.rate : '—') + '%'
+        ).join('; ');
+      case SCORE_TYPES.TIERED:
+        return '输入=' + (basis.input != null ? basis.input : '—') +
+          (basis.unit === 'percent' ? '%' : '') +
+          '; 档位: ' + (basis.brackets || []).map(b => '≥' + b.min + '→' + b.score).join(', ');
+      case SCORE_TYPES.COMPOUND_TIERED:
+        return (basis.labels ? (basis.labels.a + '=' + (basis.a != null ? basis.a : '—')) : 'a=' + (basis.a != null ? basis.a : '—')) +
+          '; ' + (basis.labels ? (basis.labels.b + '=' + (basis.b != null ? basis.b : '—')) : 'b=' + (basis.b != null ? basis.b : '—')) +
+          '; 查表 → ' + (function () {
+            const aB = basis.aBrackets || [], bB = basis.bBrackets || [];
+            const t = basis.table || [];
+            let ai = 0, bi = 0;
+            for (let i = 0; i < aB.length; i++) if (basis.a >= aB[i].min) ai = i;
+            for (let i = 0; i < bB.length; i++) if (basis.b >= bB[i].min) bi = i;
+            ai = Math.min(ai, t.length - 1);
+            bi = Math.min(bi, (t[ai] || []).length - 1);
+            return (t[ai] && t[ai][bi] != null) ? t[ai][bi] : '—';
+          })();
+      case SCORE_TYPES.RUBRIC:
+        return (basis.items || []).map(it =>
+          (it.label || '?') + '=' + (it.score != null ? it.score : '—')
+        ).join('; ');
+      default:
+        return '—';
+    }
+  }
+
+  function buildCalcAppendix() {
+    const rows = [];
+    state.dims.forEach(dim => {
+      dim.indicators.forEach((ind, i) => {
+        const basis = ind.score_basis || { type: SCORE_TYPES.RUBRIC, items: [] };
+        const result = computeFromBasis(basis);
+        rows.push({ dim, ind, basis, result, idx: i + 1 });
+      });
+    });
+    const cards = rows.map(r => `
+      <div style="margin-bottom:10px;padding:9px 12px;border:1px solid var(--rule);background:var(--surface);page-break-inside:avoid;">
+        <div style="font-family:var(--serif);font-size:13px;font-weight:600;color:var(--ink);margin-bottom:3px;display:flex;justify-content:space-between;align-items:baseline;">
+          <span><span style="font-family:var(--mono);font-size:10px;color:var(--ink-3);font-weight:400;">${escapeHTML(r.dim.code)} · ${String(r.idx).padStart(2, '0')}</span>　${escapeHTML(r.ind.name)}</span>
+          <span style="font-family:var(--mono);font-size:14px;color:var(--vermilion);font-weight:600;">${r.result.nullish ? '—' : r.result.val.toFixed(1)}</span>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--ink-3);margin-bottom:2px;">${escapeHTML(formulaText(r.basis))}</div>
+        <div style="font-family:var(--sans);font-size:11px;color:var(--ink-2);line-height:1.55;">${escapeHTML(formatBasisAsText(r.basis))}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--vermilion);margin-top:3px;">${escapeHTML(r.result.expr)} → 等级 ${gradeFor(r.result.val).letter}</div>
+      </div>
+    `).join('');
+    return `
+      <div class="calc-appendix" style="padding:24px 36px;border-top:4px double var(--ink);margin-top:24px;">
+        <div style="font-family:var(--serif);font-size:18px;font-weight:600;color:var(--ink);border-bottom:1px solid var(--ink);padding-bottom:6px;margin-bottom:14px;">
+          计算过程附录
+          <span style="font-size:11px;color:var(--ink-3);font-weight:normal;letter-spacing:2px;margin-left:8px;">CALCULATION APPENDIX · 共 ${rows.length} 项</span>
+        </div>
+        ${cards}
+        <div style="margin-top:14px;padding-top:8px;border-top:1px solid var(--rule);font-family:var(--mono);font-size:10px;color:var(--ink-3);letter-spacing:1px;text-align:right;">
+          总分计算 = Σ(维度权重 × 维度得分) / Σ维度权重 = ${calcTotal().toFixed(1)}
+        </div>
+      </div>
+    `;
+  }
+
+// ============ Modal ============
+  function openModal(html, onConfirm) {
+    const overlay = document.getElementById('modal-overlay');
+    document.getElementById('modal-content').innerHTML = html;
+    overlay.classList.add('show');
+    const close = () => overlay.classList.remove('show');
+    overlay.querySelectorAll('[data-modal="cancel"]').forEach(b => b.addEventListener('click', close));
+    overlay.querySelectorAll('[data-modal="ok"]').forEach(b => b.addEventListener('click', () => {
+      const proceed = onConfirm ? onConfirm(b) : true;
+      if (proceed !== false) close();
+    }));
+  }
+
+  // ============ Toast ============
+  let toastTimer;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  }
+
+  // ============ Init ============
+  function init() {
+    state = loadState();
+    renderGradeLegend();
+    render();
+    if (pendingMigration) renderMigrationBanner();
+
+    // CDN 加载检测
+    setTimeout(() => {
+      if (typeof echarts === 'undefined') {
+        document.getElementById('radar-chart').style.display = 'none';
+        document.getElementById('radar-fallback').style.display = 'block';
+      }
+      if (typeof html2canvas === 'undefined' || typeof window.jspdf === 'undefined') {
+        document.getElementById('btn-export-pdf').disabled = true;
+        document.getElementById('btn-export-pdf').title = '需要联网加载 html2canvas/jsPDF 才能导出 PDF';
+      }
+    }, 500);
+
+    window.addEventListener('resize', () => { if (radarChart) radarChart.resize(); });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+</body>
+</html>
